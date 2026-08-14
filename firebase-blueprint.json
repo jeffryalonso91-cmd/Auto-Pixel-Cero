@@ -1,0 +1,30 @@
+{
+  "products": ["firestore"],
+  "collections": [
+    {
+      "name": "products",
+      "fields": [
+        { "name": "id", "type": "string" },
+        { "name": "model", "type": "string" },
+        { "name": "storage", "type": "string" },
+        { "name": "condition", "type": "string" },
+        { "name": "battery", "type": "string" },
+        { "name": "price", "type": "number" },
+        { "name": "status", "type": "string" },
+        { "name": "images", "type": "array" }
+      ],
+      "rules": "allow read: if true; allow write: if true;"
+    },
+    {
+      "name": "config",
+      "fields": [
+        { "name": "storeName", "type": "string" },
+        { "name": "whatsappNumber", "type": "string" },
+        { "name": "email", "type": "string" },
+        { "name": "instagramUrl", "type": "string" },
+        { "name": "businessHours", "type": "string" }
+      ],
+      "rules": "allow read: if true; allow write: if true;"
+    }
+  ]
+}

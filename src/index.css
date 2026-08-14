@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --color-apple-bg: #F5F5F7;
+  --color-apple-text: #1D1D1F;
+  --color-apple-blue: #0071E3;
+  --color-apple-blue-hover: #0077ED;
+  --color-apple-gray: #86868B;
+  --color-apple-card: #FFFFFF;
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  @apply bg-apple-bg text-apple-text font-sans antialiased;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
