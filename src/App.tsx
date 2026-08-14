@@ -60,7 +60,7 @@ export default function App() {
                    businessHours: storeData.business_hours ?? prev.businessHours,
                    currencySymbol: storeData.currency_symbol ?? prev.currencySymbol,
                    logoUrl: storeData.logo_url ?? prev.logoUrl,
-                   faviconUrl: faviconData.logo_url ?? prev.faviconUrl,
+                   
                    popupEnabled: storeData.popup_enabled ?? prev.popupEnabled,
                    popupImageUrl: storeData.popup_image_url ?? prev.popupImageUrl,
                    heroImageUrl: heroData.popup_image_url ?? prev.heroImageUrl
@@ -91,7 +91,7 @@ export default function App() {
                businessHours: storeData.business_hours ?? prev.businessHours,
                currencySymbol: storeData.currency_symbol ?? prev.currencySymbol,
                logoUrl: storeData.logo_url ?? prev.logoUrl,
-                   faviconUrl: faviconData.logo_url ?? prev.faviconUrl,
+                   
                popupEnabled: storeData.popup_enabled ?? prev.popupEnabled,
                popupImageUrl: storeData.popup_image_url ?? prev.popupImageUrl,
                heroImageUrl: heroData.popup_image_url ?? prev.heroImageUrl
@@ -111,16 +111,16 @@ export default function App() {
 
   useEffect(() => {
     document.title = storeConfig.storeName || "Pixel Cero";
-    if (storeConfig.faviconUrl) {
+    if (storeConfig.logoUrl) {
       let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
       if (!link) {
         link = document.createElement('link');
         link.rel = 'icon';
         document.head.appendChild(link);
       }
-      link.href = storeConfig.faviconUrl;
+      link.href = storeConfig.logoUrl;
     }
-  }, [storeConfig.faviconUrl, storeConfig.storeName]);
+  }, [storeConfig.logoUrl, storeConfig.storeName]);
 
   useEffect(() => {
     const checkHash = () => setIsAdmin(window.location.hash === '#admin');
