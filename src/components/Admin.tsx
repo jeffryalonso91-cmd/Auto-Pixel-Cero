@@ -758,6 +758,7 @@ export default function Admin({
                         business_hours: tempConfig?.businessHours,
                         currency_symbol: tempConfig?.currencySymbol,
                         logo_url: tempConfig?.logoUrl,
+                        
                         popup_enabled: tempConfig?.popupEnabled,
                         popup_image_url: tempConfig?.popupImageUrl
                       });
@@ -768,6 +769,12 @@ export default function Admin({
                         popup_image_url: tempConfig?.heroImageUrl
                       });
                       if (heroError) console.error(heroError);
+                      const { error: faviconError } = await supabase.from('store_config').upsert({
+                        id: 'favicon',
+                        logo_url: tempConfig?.faviconUrl
+                      });
+                      if (faviconError) console.error(faviconError);
+
                     });
                   }}
                   className="px-8 py-4 bg-apple-blue text-white rounded-full font-medium hover:bg-apple-blue-hover transition-colors"

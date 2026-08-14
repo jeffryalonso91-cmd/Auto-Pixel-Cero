@@ -6,6 +6,7 @@ export const CONFIG = {
   businessHours: "Lun - Vie, 9 AM - 6 PM",
   currencySymbol: "$",
   logoUrl: "",
+  faviconUrl: "",
   popupEnabled: false,
   popupImageUrl: "",
   heroImageUrl: "https://images.unsplash.com/photo-1603898037225-83606be13426?auto=format&fit=crop&q=80&w=1200",

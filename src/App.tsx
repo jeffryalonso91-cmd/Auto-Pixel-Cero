@@ -33,7 +33,7 @@ export default function App() {
 
         // Subscriptions (Supabase Realtime)
         productsSubscription = supabase
-          .channel('products_changes')
+          .channel('products_changes_' + Math.random().toString(36).substring(7))
           .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
              // Fetch all on change for simplicity, like onSnapshot
              supabase.from('products').select('*').then(({ data }) => {
@@ -43,12 +43,13 @@ export default function App() {
           .subscribe();
 
         configSubscription = supabase
-          .channel('config_changes')
+          .channel('config_changes_' + Math.random().toString(36).substring(7))
           .on('postgres_changes', { event: '*', schema: 'public', table: 'store_config' }, () => {
-             supabase.from('store_config').select('*').in('id', ['store', 'hero']).then(({ data }) => {
+             supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon']).then(({ data }) => {
                if (data && isMounted) {
                  const storeData = data.find((d: any) => d.id === 'store') || {};
                  const heroData = data.find((d: any) => d.id === 'hero') || {};
+                 const faviconData = data.find((d: any) => d.id === 'favicon') || {};
                  
                  setStoreConfig(prev => ({
                    ...prev,
@@ -59,6 +60,7 @@ export default function App() {
                    businessHours: storeData.business_hours ?? prev.businessHours,
                    currencySymbol: storeData.currency_symbol ?? prev.currencySymbol,
                    logoUrl: storeData.logo_url ?? prev.logoUrl,
+                   faviconUrl: faviconData.logo_url ?? prev.faviconUrl,
                    popupEnabled: storeData.popup_enabled ?? prev.popupEnabled,
                    popupImageUrl: storeData.popup_image_url ?? prev.popupImageUrl,
                    heroImageUrl: heroData.popup_image_url ?? prev.heroImageUrl
@@ -74,10 +76,11 @@ export default function App() {
           if (isMounted) setLoading(false);
         });
 
-        supabase.from('store_config').select('*').in('id', ['store', 'hero']).then(({ data }) => {
+        supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon']).then(({ data }) => {
           if (data && isMounted) {
              const storeData = data.find((d: any) => d.id === 'store') || {};
              const heroData = data.find((d: any) => d.id === 'hero') || {};
+                 const faviconData = data.find((d: any) => d.id === 'favicon') || {};
              
              setStoreConfig(prev => ({
                ...prev,
@@ -88,6 +91,7 @@ export default function App() {
                businessHours: storeData.business_hours ?? prev.businessHours,
                currencySymbol: storeData.currency_symbol ?? prev.currencySymbol,
                logoUrl: storeData.logo_url ?? prev.logoUrl,
+                   faviconUrl: faviconData.logo_url ?? prev.faviconUrl,
                popupEnabled: storeData.popup_enabled ?? prev.popupEnabled,
                popupImageUrl: storeData.popup_image_url ?? prev.popupImageUrl,
                heroImageUrl: heroData.popup_image_url ?? prev.heroImageUrl
@@ -104,6 +108,19 @@ export default function App() {
       });
     };
   }, []);
+
+  useEffect(() => {
+    document.title = storeConfig.storeName || "Pixel Cero";
+    if (storeConfig.faviconUrl) {
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = storeConfig.faviconUrl;
+    }
+  }, [storeConfig.faviconUrl, storeConfig.storeName]);
 
   useEffect(() => {
     const checkHash = () => setIsAdmin(window.location.hash === '#admin');

@@ -74,7 +74,7 @@ function Lightbox({ images, onClose }: { images: string[], onClose: () => void }
 }
 
 
-function ProductCard({ product, index, config, handleWhatsApp, setActiveGallery }: { product: Product, index: number, config: any, handleWhatsApp: any, setActiveGallery: any }) {
+function ProductCard({ product, index, config, handleWhatsApp, setActiveGallery }: { product: Product, index: number, config: any, handleWhatsApp: any, setActiveGallery: any, key?: React.Key }) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { margin: "-30% 0px -30% 0px" });
 
