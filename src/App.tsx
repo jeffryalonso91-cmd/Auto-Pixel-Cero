@@ -109,16 +109,35 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     document.title = storeConfig.storeName || "Pixel Cero";
     if (storeConfig.logoUrl) {
-      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      // Standard Favicon
+      let link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
       if (!link) {
         link = document.createElement('link');
         link.rel = 'icon';
         document.head.appendChild(link);
       }
       link.href = storeConfig.logoUrl;
+
+      // Apple Touch Icon
+      let appleLink = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
+      if (!appleLink) {
+        appleLink = document.createElement('link');
+        appleLink.rel = 'apple-touch-icon';
+        document.head.appendChild(appleLink);
+      }
+      appleLink.href = storeConfig.logoUrl;
+      
+      // Shortcut Icon (for older browsers)
+      let shortcutLink = document.querySelector("link[rel='shortcut icon']") as HTMLLinkElement;
+      if (!shortcutLink) {
+        shortcutLink = document.createElement('link');
+        shortcutLink.rel = 'shortcut icon';
+        document.head.appendChild(shortcutLink);
+      }
+      shortcutLink.href = storeConfig.logoUrl;
     }
   }, [storeConfig.logoUrl, storeConfig.storeName]);
 
