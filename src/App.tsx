@@ -76,9 +76,6 @@ export default function App() {
           if (error) console.error('Supabase error:', error);
           if (data && isMounted) setProducts(data as Product[]);
           if (isMounted) setLoading(false);
-        }).catch(err => {
-          console.error('Fetch exception:', err);
-          if (isMounted) setLoading(false);
         });
 
         supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon']).then(({ data }) => {

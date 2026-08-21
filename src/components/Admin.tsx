@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../data';
 import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload } from 'lucide-react';
+import imageCompression from 'browser-image-compression';
 
 async function hashPassword(password: string) {
   const msgBuffer = new TextEncoder().encode(password);
@@ -9,36 +10,25 @@ async function hashPassword(password: string) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-const processImageFile = (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        if (width > height) {
-          if (width > maxWidth) {
-            height *= maxWidth / width;
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width *= maxHeight / height;
-            height = maxHeight;
-          }
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.8));
-      };
-      img.src = e.target?.result as string;
+const processImageFile = async (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
+  try {
+    const options = {
+      maxSizeMB: 1,
+      maxWidthOrHeight: Math.max(maxWidth, maxHeight),
+      useWebWorker: true,
+      preserveExif: true,
+      initialQuality: 0.85
     };
-    reader.readAsDataURL(file);
-  });
+    const compressedFile = await imageCompression(file, options);
+    return await imageCompression.getDataUrlFromFile(compressedFile);
+  } catch (error) {
+    console.error('Error compressing image', error);
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.readAsDataURL(file);
+    });
+  }
 };
 
 export default function Admin({
@@ -485,47 +475,36 @@ export default function Admin({
                       <input 
                         type="file" 
                         multiple 
-                        accept="image/*" 
+                        accept="image/*"
                         className="hidden"
                         onChange={async (e) => {
                           if (!e.target.files) return;
                           const files = Array.from(e.target.files) as File[];
-                          const newImages = await Promise.all(files.map(file => {
-                            return new Promise<string>((resolve) => {
-                              const reader = new FileReader();
-                              reader.onload = (e) => {
-                                const img = new Image();
-                                img.onload = () => {
-                                  const canvas = document.createElement('canvas');
-                                  const MAX_WIDTH = 800;
-                                  const MAX_HEIGHT = 800;
-                                  let width = img.width;
-                                  let height = img.height;
-
-                                  if (width > height) {
-                                    if (width > MAX_WIDTH) {
-                                      height *= MAX_WIDTH / width;
-                                      width = MAX_WIDTH;
-                                    }
-                                  } else {
-                                    if (height > MAX_HEIGHT) {
-                                      width *= MAX_HEIGHT / height;
-                                      height = MAX_HEIGHT;
-                                    }
-                                  }
-
-                                  canvas.width = width;
-                                  canvas.height = height;
-                                  const ctx = canvas.getContext('2d');
-                                  ctx?.drawImage(img, 0, 0, width, height);
-                                  resolve(canvas.toDataURL('image/jpeg', 0.7));
-                                };
-                                img.src = e.target?.result as string;
+                          try {
+                            const newImages = await Promise.all(files.map(async (file) => {
+                              const options = {
+                                maxSizeMB: 0.8,
+                                maxWidthOrHeight: 1200,
+                                useWebWorker: true,
+                                preserveExif: true,
+                                initialQuality: 0.85
                               };
-                              reader.readAsDataURL(file);
-                            });
-                          }));
-                          setEditingImages(prev => [...prev, ...newImages]);
+                              const compressedFile = await imageCompression(file, options);
+                              return await imageCompression.getDataUrlFromFile(compressedFile);
+                            }));
+                            setEditingImages(prev => [...prev, ...newImages]);
+                          } catch (error) {
+                            console.error('Error compressing image', error);
+                            // Fallback if compression fails
+                            const fallbackImages = await Promise.all(files.map(file => {
+                              return new Promise<string>((resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = (e) => resolve(e.target?.result as string);
+                                reader.readAsDataURL(file);
+                              });
+                            }));
+                            setEditingImages(prev => [...prev, ...fallbackImages]);
+                          }
                         }}
                       />
                     </label>
