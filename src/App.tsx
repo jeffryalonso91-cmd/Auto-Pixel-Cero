@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 import { useState, useEffect, createContext } from 'react';
 import localforage from 'localforage';
+import { supabase } from './supabase';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import Catalog from './components/Catalog';
@@ -28,7 +29,7 @@ export default function App() {
     let configSubscription: any;
     let isMounted = true;
 
-    import('./supabase').then(async ({ supabase }) => {
+    
         if (!isMounted) return;
 
         // Subscriptions (Supabase Realtime)
@@ -71,8 +72,12 @@ export default function App() {
           .subscribe();
 
         // Initial fetch
-        supabase.from('products').select('*').then(({ data }) => {
+        supabase.from('products').select('*').then(({ data, error }) => {
+          if (error) console.error('Supabase error:', error);
           if (data && isMounted) setProducts(data as Product[]);
+          if (isMounted) setLoading(false);
+        }).catch(err => {
+          console.error('Fetch exception:', err);
           if (isMounted) setLoading(false);
         });
 
@@ -98,14 +103,13 @@ export default function App() {
              }));
           }
         });
-    });
+
 
     return () => {
       isMounted = false;
-      import('./supabase').then(({ supabase }) => {
+      
         if (productsSubscription) supabase.removeChannel(productsSubscription);
         if (configSubscription) supabase.removeChannel(configSubscription);
-      });
     };
   }, []);
 
