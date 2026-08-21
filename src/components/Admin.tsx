@@ -13,11 +13,11 @@ async function hashPassword(password: string) {
 const processImageFile = async (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
   try {
     const options = {
-      maxSizeMB: 1,
+      maxSizeMB: 2, // Higher limit
       maxWidthOrHeight: Math.max(maxWidth, maxHeight),
       useWebWorker: true,
       preserveExif: true,
-      initialQuality: 0.85
+      initialQuality: 0.98 // Preserve high quality
     };
     const compressedFile = await imageCompression(file, options);
     return await imageCompression.getDataUrlFromFile(compressedFile);
@@ -483,11 +483,11 @@ export default function Admin({
                           try {
                             const newImages = await Promise.all(files.map(async (file) => {
                               const options = {
-                                maxSizeMB: 0.8,
-                                maxWidthOrHeight: 1200,
+                                maxSizeMB: 2, // Allow larger files to prevent compression noise
+                                maxWidthOrHeight: 1920,
                                 useWebWorker: true,
                                 preserveExif: true,
-                                initialQuality: 0.85
+                                initialQuality: 0.98 // High quality to preserve Lightroom edits (denoise)
                               };
                               const compressedFile = await imageCompression(file, options);
                               return await imageCompression.getDataUrlFromFile(compressedFile);
