@@ -4,7 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, createContext } from 'react';
+import { useState, useEffect, createContext, lazy, Suspense } from 'react';
 import localforage from 'localforage';
 import { supabase } from './supabase';
 import Header from './components/Header';
@@ -12,7 +12,8 @@ import Hero from './components/Hero';
 import Catalog from './components/Catalog';
 import Trust from './components/Trust';
 import Footer from './components/Footer';
-import Admin from './components/Admin';
+const Admin = lazy(() => import('./components/Admin'));
+import Reviews from './components/Reviews';
 import PopupBanner from './components/PopupBanner';
 import { PRODUCTS, Product, CONFIG } from './data';
 
@@ -157,12 +158,10 @@ export default function App() {
     return () => window.removeEventListener('hashchange', checkHash);
   }, []);
 
-  if (loading) {
-    return <div className="min-h-screen bg-apple-bg flex items-center justify-center font-sans text-apple-gray">Cargando...</div>;
-  }
+
 
   if (isAdmin) {
-    return <ErrorBoundary><Admin products={products} setProducts={setProducts} storeConfig={storeConfig} setStoreConfig={setStoreConfig} /></ErrorBoundary>;
+    return <ErrorBoundary><Suspense fallback={<div className="min-h-screen bg-apple-bg flex items-center justify-center font-sans text-apple-gray">Cargando Panel...</div>}><Admin products={products} setProducts={setProducts} storeConfig={storeConfig} setStoreConfig={setStoreConfig} /></Suspense></ErrorBoundary>;
   }
 
   return (
@@ -171,7 +170,12 @@ export default function App() {
         <Header />
         <main>
           <Hero />
-          {fetchError ? (
+          {loading ? (
+            <div className="max-w-7xl mx-auto px-6 py-24 text-center">
+              <div className="inline-block w-8 h-8 border-4 border-gray-200 border-t-apple-blue rounded-full animate-spin mb-4"></div>
+              <p className="text-apple-gray">Despertando base de datos (puede tardar unos segundos)...</p>
+            </div>
+          ) : fetchError ? (
             <div className="max-w-7xl mx-auto px-6 py-12">
               <div className="bg-red-50 text-red-600 p-6 rounded-3xl flex flex-col items-center justify-center text-center border border-red-100 gap-2">
                 <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -183,6 +187,7 @@ export default function App() {
           ) : (
             <Catalog products={products} />
           )}
+          <Reviews />
           <Trust />
         </main>
         <Footer />

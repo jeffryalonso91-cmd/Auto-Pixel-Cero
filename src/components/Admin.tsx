@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../supabase';
 import { Product } from '../data';
 import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
+
 
 async function hashPassword(password: string) {
   const msgBuffer = new TextEncoder().encode(password);
@@ -52,7 +54,75 @@ export default function Admin({
   const [editingImages, setEditingImages] = useState<string[]>([]);
   const [isNew, setIsNew] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'config' | 'users'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'config' | 'users' | 'reviews'>('inventory');
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [deleteReviewConfirm, setDeleteReviewConfirm] = useState<any | null>(null);
+  const [reviewActionLoading, setReviewActionLoading] = useState<string | null>(null);
+  
+  const fetchReviewsAdmin = async () => {
+    const { data } = await supabase.from('store_config').select('store_name').eq('id', 'reviews_data').single();
+    if (data && data.store_name) {
+      try {
+        setReviews(JSON.parse(data.store_name));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  const handleToggleReviewStatus = async (review: any) => {
+    setReviewActionLoading(review.id);
+    const newStatus = review.status === 'hidden' ? 'published' : 'hidden';
+    const updatedReviews = reviews.map(r => r.id === review.id ? { ...r, status: newStatus } : r);
+    setReviews(updatedReviews);
+    try {
+      const { error } = await supabase.from('store_config').upsert({ id: 'reviews_data', store_name: JSON.stringify(updatedReviews) });
+      if (error) {
+        console.error('Error toggling review status:', error);
+        fetchReviewsAdmin();
+      }
+    } catch (e) {
+      console.error(e);
+      fetchReviewsAdmin();
+    } finally {
+      setReviewActionLoading(null);
+    }
+  };
+
+  const handleConfirmDeleteReview = async () => {
+    if (!deleteReviewConfirm) return;
+    const idToDelete = deleteReviewConfirm.id;
+    setDeleteReviewConfirm(null);
+    setReviewActionLoading(idToDelete);
+    const updatedReviews = reviews.filter(r => r.id !== idToDelete);
+    setReviews(updatedReviews);
+    try {
+      const { error } = await supabase.from('store_config').upsert({ id: 'reviews_data', store_name: JSON.stringify(updatedReviews) });
+      if (error) {
+        console.error('Error deleting review:', error);
+        fetchReviewsAdmin();
+      }
+    } catch (e) {
+      console.error(e);
+      fetchReviewsAdmin();
+    } finally {
+      setReviewActionLoading(null);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchReviewsAdmin();
+      const sub = supabase
+        .channel('admin_reviews_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'store_config', filter: 'id=eq.reviews_data' }, () => {
+           fetchReviewsAdmin();
+        })
+        .subscribe();
+      return () => { supabase.removeChannel(sub); };
+    }
+  }, [isAuthenticated]);
+
   const [configEditing, setConfigEditing] = useState(false);
   const [tempConfig, setTempConfig] = useState(storeConfig);
 
@@ -324,6 +394,12 @@ export default function Admin({
               className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === 'users' ? 'bg-white shadow-sm text-apple-text' : 'text-apple-gray hover:text-apple-text'}`}
             >
               Usuarios
+            </button>
+                      <button
+              onClick={() => setActiveTab('reviews')}
+              className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === 'reviews' ? 'bg-white shadow-sm text-apple-text' : 'text-apple-gray hover:text-apple-text'}`}
+            >
+              Reseñas
             </button>
           </div>
         </div>
@@ -768,6 +844,115 @@ export default function Admin({
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'reviews' && (
+          <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold">Mantenimiento de Reseñas</h2>
+                <p className="text-apple-gray text-sm mt-1">Gestiona los testimonios de los clientes. Puedes ocultarlos o eliminarlos permanentemente.</p>
+              </div>
+              <span className="text-sm font-medium px-4 py-1.5 bg-gray-100 rounded-full text-apple-gray self-start md:self-auto">
+                {reviews.length} {reviews.length === 1 ? 'reseña' : 'reseñas'}
+              </span>
+            </div>
+
+            {reviews.length === 0 ? (
+              <div className="text-center py-16 text-apple-gray border-2 border-dashed border-gray-200 rounded-2xl">
+                No hay reseñas registradas todavía.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {reviews.map(review => {
+                  const isHidden = review.status === 'hidden';
+                  const isProcessing = reviewActionLoading === review.id;
+
+                  return (
+                    <div 
+                      key={review.id} 
+                      className={`border rounded-2xl p-6 flex flex-col md:flex-row justify-between gap-6 transition-all ${
+                        isHidden ? 'bg-gray-50 border-gray-200 opacity-75' : 'bg-apple-bg/50 border-gray-100'
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
+                          <span className="font-semibold text-lg text-apple-text">{review.author}</span>
+                          <div className="flex text-yellow-400">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <svg key={i} className={`w-4 h-4 ${i < review.rating ? 'fill-current' : 'text-gray-300 fill-current'}`} viewBox="0 0 24 24">
+                                <path d="M12 .587l3.668 7.568 8.332 1.151-6.064 5.828 1.48 8.279-7.416-3.967-7.417 3.967 1.481-8.279-6.064-5.828 8.332-1.151z"/>
+                              </svg>
+                            ))}
+                          </div>
+                          {isHidden ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                              Oculta en la tienda
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                              Visible en la tienda
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-apple-text text-base mb-3 italic">"{review.content}"</p>
+                        <div className="text-xs text-apple-gray flex items-center gap-2">
+                          <span>Fecha: {review.createdAt ? new Date(review.createdAt).toLocaleString('es-ES') : 'Recientemente'}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-row md:flex-col lg:flex-row gap-2 items-center self-end md:self-center">
+                        <button 
+                          disabled={isProcessing}
+                          onClick={() => handleToggleReviewStatus(review)}
+                          className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                            isHidden 
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                              : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                          } disabled:opacity-50`}
+                        >
+                          {isHidden ? 'Mostrar' : 'Ocultar'}
+                        </button>
+                        <button 
+                          disabled={isProcessing}
+                          onClick={() => setDeleteReviewConfirm(review)}
+                          className="px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <Trash2 size={16} />
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {deleteReviewConfirm && (
+              <div className="fixed inset-0 bg-black/30 backdrop-blur-md flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative">
+                  <h3 className="text-xl font-semibold mb-2 text-apple-text">¿Eliminar reseña?</h3>
+                  <p className="text-apple-gray text-sm mb-6">
+                    Esta acción eliminará de forma permanente la reseña de <span className="font-semibold text-apple-text">"{deleteReviewConfirm.author}"</span>.
+                  </p>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => setDeleteReviewConfirm(null)}
+                      className="flex-1 py-3 px-4 bg-gray-100 text-apple-text rounded-xl font-medium hover:bg-gray-200 transition-colors text-sm"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleConfirmDeleteReview}
+                      className="flex-1 py-3 px-4 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors text-sm"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
