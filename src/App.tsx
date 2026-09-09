@@ -48,11 +48,17 @@ export default function App() {
         configSubscription = supabase
           .channel('config_changes_' + Math.random().toString(36).substring(7))
           .on('postgres_changes', { event: '*', schema: 'public', table: 'store_config' }, () => {
-             supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon']).then(({ data }) => {
+             supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon', 'socials']).then(({ data }) => {
                if (data && isMounted) {
                  const storeData = data.find((d: any) => d.id === 'store') || {};
                  const heroData = data.find((d: any) => d.id === 'hero') || {};
                  const faviconData = data.find((d: any) => d.id === 'favicon') || {};
+                 const socialsData = data.find((d: any) => d.id === 'socials') || {};
+
+                 let parsedSocials: any = {};
+                 if (socialsData.store_name) {
+                   try { parsedSocials = JSON.parse(socialsData.store_name); } catch (e) {}
+                 }
                  
                  setStoreConfig(prev => ({
                    ...prev,
@@ -60,6 +66,8 @@ export default function App() {
                    whatsappNumber: storeData.whatsapp_number ?? prev.whatsappNumber,
                    email: storeData.email ?? prev.email,
                    instagramUrl: storeData.instagram_url ?? prev.instagramUrl,
+                   facebookUrl: parsedSocials.facebookUrl ?? storeData.facebook_url ?? prev.facebookUrl,
+                   tiktokUrl: parsedSocials.tiktokUrl ?? storeData.tiktok_url ?? prev.tiktokUrl,
                    businessHours: storeData.business_hours ?? prev.businessHours,
                    currencySymbol: storeData.currency_symbol ?? prev.currencySymbol,
                    logoUrl: storeData.logo_url ?? prev.logoUrl,
@@ -87,11 +95,17 @@ export default function App() {
           if (isMounted) setLoading(false);
         });
 
-        supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon']).then(({ data }) => {
+        supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon', 'socials']).then(({ data }) => {
           if (data && isMounted) {
              const storeData = data.find((d: any) => d.id === 'store') || {};
              const heroData = data.find((d: any) => d.id === 'hero') || {};
-                 const faviconData = data.find((d: any) => d.id === 'favicon') || {};
+             const faviconData = data.find((d: any) => d.id === 'favicon') || {};
+             const socialsData = data.find((d: any) => d.id === 'socials') || {};
+
+             let parsedSocials: any = {};
+             if (socialsData.store_name) {
+               try { parsedSocials = JSON.parse(socialsData.store_name); } catch (e) {}
+             }
              
              setStoreConfig(prev => ({
                ...prev,
@@ -99,6 +113,8 @@ export default function App() {
                whatsappNumber: storeData.whatsapp_number ?? prev.whatsappNumber,
                email: storeData.email ?? prev.email,
                instagramUrl: storeData.instagram_url ?? prev.instagramUrl,
+               facebookUrl: parsedSocials.facebookUrl ?? storeData.facebook_url ?? prev.facebookUrl,
+               tiktokUrl: parsedSocials.tiktokUrl ?? storeData.tiktok_url ?? prev.tiktokUrl,
                businessHours: storeData.business_hours ?? prev.businessHours,
                currencySymbol: storeData.currency_symbol ?? prev.currencySymbol,
                logoUrl: storeData.logo_url ?? prev.logoUrl,

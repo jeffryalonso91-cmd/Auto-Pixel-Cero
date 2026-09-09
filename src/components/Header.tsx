@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { useState, useEffect, useContext } from 'react';
 import { ConfigContext } from '../App';
+import SocialLinks from './SocialIcons';
 
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
@@ -30,12 +31,18 @@ export default function Header() {
           )}
           {config.storeName}
         </a>
-        <nav className="flex items-center gap-4 sm:gap-8 text-sm font-medium">
-          <a href="#" className="text-apple-text hover:text-apple-blue transition-colors">Inicio</a>
-          <a href="#catalog" className="text-apple-text hover:text-apple-blue transition-colors">Catálogo</a>
-          <a href="#reviews" className="text-apple-text hover:text-apple-blue transition-colors">Reseñas</a>
-          <a href="#contact" className="text-apple-text hover:text-apple-blue transition-colors">Contacto</a>
-        </nav>
+        <div className="flex items-center gap-3 sm:gap-6">
+          <nav className="flex items-center gap-3 sm:gap-6 text-sm font-medium">
+            <a href="#" className="text-apple-text hover:text-apple-blue transition-colors">Inicio</a>
+            <a href="#catalog" className="text-apple-text hover:text-apple-blue transition-colors">Catálogo</a>
+            <a href="#reviews" className="text-apple-text hover:text-apple-blue transition-colors">Reseñas</a>
+            <a href="#contact" className="text-apple-text hover:text-apple-blue transition-colors">Contacto</a>
+          </nav>
+          
+          <div className="h-4 w-px bg-gray-300/80 hidden sm:block" />
+          
+          <SocialLinks config={config} variant="header" size={17} />
+        </div>
       </div>
     </motion.header>
   );

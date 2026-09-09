@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { useContext } from 'react';
 import { ConfigContext } from '../App';
 import { ShieldCheck, Truck, Unlock } from 'lucide-react';
+import SocialLinks from './SocialIcons';
 
 export default function Hero() {
   const config = useContext(ConfigContext);
@@ -58,11 +59,16 @@ export default function Hero() {
 
         <motion.a
           href="#catalog"
-          className="bg-black text-white px-10 py-4 rounded-full font-medium tracking-wide hover:bg-gray-900 transition-all text-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] hover:shadow-[0_15px_50px_-10px_rgba(0,0,0,0.6)] hover:-translate-y-1"
+          className="bg-black text-white px-10 py-4 rounded-full font-medium tracking-wide hover:bg-gray-900 transition-all text-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] hover:shadow-[0_15px_50px_-10px_rgba(0,0,0,0.6)] hover:-translate-y-1 inline-block"
           whileTap={{ scale: 0.95 }}
         >
           Ver Catálogo
         </motion.a>
+
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <span className="text-xs font-semibold uppercase tracking-wider text-apple-gray">Síguenos:</span>
+          <SocialLinks config={config} variant="pills" />
+        </div>
       </motion.div>
     </section>
   );

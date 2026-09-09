@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { Product } from '../data';
-import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload, Key, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload, Key, ShieldCheck, RefreshCw, Instagram, Facebook } from 'lucide-react';
+import { TikTokSvg } from './SocialIcons';
 import imageCompression from 'browser-image-compression';
 
 
@@ -77,6 +78,8 @@ export default function Admin({
   
   const [configEditing, setConfigEditing] = useState(false);
   const [tempConfig, setTempConfig] = useState(storeConfig || {});
+  const [configSaveMessage, setConfigSaveMessage] = useState('');
+  const [configSaving, setConfigSaving] = useState(false);
   
         const fetchAdminUsers = async () => {};
 
@@ -159,6 +162,12 @@ export default function Admin({
       return () => { supabase.removeChannel(sub); };
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (storeConfig) {
+      setTempConfig(storeConfig);
+    }
+  }, [storeConfig]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -731,14 +740,47 @@ export default function Admin({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Enlace de Instagram</label>
+                <label className="flex items-center gap-2 text-sm font-medium text-apple-text mb-2 ml-1">
+                  <Instagram size={16} className="text-pink-600" />
+                  <span>Enlace de Instagram</span>
+                </label>
                 <input
                   type="text"
+                  placeholder="https://instagram.com/pixelcero"
                   value={tempConfig?.instagramUrl || ""}
                   onChange={(e) => setTempConfig({...(tempConfig || {}), instagramUrl: e.target.value})}
                   className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all"
                 />
               </div>
+
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-apple-text mb-2 ml-1">
+                  <Facebook size={16} className="text-blue-600" />
+                  <span>Enlace de Facebook</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="https://facebook.com/pixelcero"
+                  value={tempConfig?.facebookUrl || ""}
+                  onChange={(e) => setTempConfig({...(tempConfig || {}), facebookUrl: e.target.value})}
+                  className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-apple-text mb-2 ml-1">
+                  <TikTokSvg size={16} />
+                  <span>Enlace de TikTok</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="https://tiktok.com/@pixelcero"
+                  value={tempConfig?.tiktokUrl || ""}
+                  onChange={(e) => setTempConfig({...(tempConfig || {}), tiktokUrl: e.target.value})}
+                  className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all"
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Logo de la Tienda (Opcional)</label>
                 <div className="flex gap-4 items-end">
@@ -856,11 +898,15 @@ export default function Admin({
                 />
               </div>
               
-              <div className="pt-4 border-t border-gray-100 flex gap-4">
+              <div className="pt-4 border-t border-gray-100 flex flex-wrap items-center gap-4">
                 <button
-                  onClick={() => {
+                  disabled={configSaving}
+                  onClick={async () => {
+                    setConfigSaving(true);
+                    setConfigSaveMessage('');
                     setStoreConfig(tempConfig);
-                    import('../supabase').then(async ({ supabase }) => {
+                    try {
+                      const { supabase } = await import('../supabase');
                       const { error } = await supabase.from('store_config').upsert({ 
                         id: 'store', 
                         store_name: tempConfig?.storeName,
@@ -874,7 +920,16 @@ export default function Admin({
                         popup_enabled: tempConfig?.popupEnabled,
                         popup_image_url: tempConfig?.popupImageUrl
                       });
-                      if (error) console.error(error);
+                      if (error) console.error('Error saving store config:', error);
+
+                      const { error: socialsError } = await supabase.from('store_config').upsert({
+                        id: 'socials',
+                        store_name: JSON.stringify({
+                          facebookUrl: tempConfig?.facebookUrl || '',
+                          tiktokUrl: tempConfig?.tiktokUrl || ''
+                        })
+                      });
+                      if (socialsError) console.error('Error saving socials:', socialsError);
                       
                       const { error: heroError } = await supabase.from('store_config').upsert({
                         id: 'hero',
@@ -887,18 +942,34 @@ export default function Admin({
                       });
                       if (faviconError) console.error(faviconError);
 
-                    });
+                      setConfigSaveMessage('¡Ajustes y redes guardados correctamente!');
+                      setTimeout(() => setConfigSaveMessage(''), 4000);
+                    } catch (err) {
+                      console.error('Save settings error:', err);
+                      setConfigSaveMessage('Error al guardar ajustes.');
+                    } finally {
+                      setConfigSaving(false);
+                    }
                   }}
-                  className="px-8 py-4 bg-apple-blue text-white rounded-full font-medium hover:bg-apple-blue-hover transition-colors"
+                  className="px-8 py-4 bg-apple-blue text-white rounded-full font-medium hover:bg-apple-blue-hover transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  Guardar Ajustes
+                  {configSaving ? 'Guardando...' : 'Guardar Ajustes'}
                 </button>
                 <button
-                  onClick={() => setTempConfig(storeConfig)}
+                  onClick={() => {
+                    setTempConfig(storeConfig);
+                    setConfigSaveMessage('');
+                  }}
                   className="px-8 py-4 bg-gray-100 text-apple-text rounded-full font-medium hover:bg-gray-200 transition-colors"
                 >
                   Descartar Cambios
                 </button>
+
+                {configSaveMessage && (
+                  <span className="text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-full animate-fade-in">
+                    {configSaveMessage}
+                  </span>
+                )}
               </div>
             </div>
           </div>

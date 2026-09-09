@@ -3,6 +3,8 @@ export const CONFIG = {
   whatsappNumber: "+1234567890", // Example format, replace with actual number
   email: "hola@pixelcero.example.com",
   instagramUrl: "https://instagram.com/pixelcero",
+  facebookUrl: "https://facebook.com/pixelcero",
+  tiktokUrl: "https://tiktok.com/@pixelcero",
   businessHours: "Lun - Vie, 9 AM - 6 PM",
   currencySymbol: "$",
   logoUrl: "",

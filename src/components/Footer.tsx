@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import { ConfigContext } from '../App';
-import { Instagram, Mail } from 'lucide-react';
+import SocialLinks from './SocialIcons';
 
 export default function Footer() {
   const config = useContext(ConfigContext);
@@ -14,13 +14,10 @@ export default function Footer() {
           <p className="text-apple-gray max-w-xs mb-6">
             Dispositivos Apple reacondicionados premium. Calidad en la que puedes confiar, precios que te encantarán.
           </p>
-          <div className="flex items-center gap-4 text-apple-gray">
-            <a href={config.instagramUrl} target="_blank" rel="noreferrer" className="hover:text-apple-text transition-colors">
-              <Instagram size={20} />
-            </a>
-            <a href={`mailto:${config.email}`} className="hover:text-apple-text transition-colors">
-              <Mail size={20} />
-            </a>
+          
+          <div className="mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-apple-gray block mb-3">Síguenos en redes</span>
+            <SocialLinks config={config} size={20} />
           </div>
         </div>
         
