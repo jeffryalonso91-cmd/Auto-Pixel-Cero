@@ -31,9 +31,10 @@ export default function Header() {
           {config.storeName}
         </a>
         <nav className="flex items-center gap-4 sm:gap-8 text-sm font-medium">
-          <a href="#" className="text-apple-text hover:text-apple-blue transition-colors">inicio</a>
-          <a href="#catalog" className="text-apple-text hover:text-apple-blue transition-colors">catálogo</a>
-          <a href="#contact" className="text-apple-text hover:text-apple-blue transition-colors">contacto</a>
+          <a href="#" className="text-apple-text hover:text-apple-blue transition-colors">Inicio</a>
+          <a href="#catalog" className="text-apple-text hover:text-apple-blue transition-colors">Catálogo</a>
+          <a href="#reviews" className="text-apple-text hover:text-apple-blue transition-colors">Reseñas</a>
+          <a href="#contact" className="text-apple-text hover:text-apple-blue transition-colors">Contacto</a>
         </nav>
       </div>
     </motion.header>

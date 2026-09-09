@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { Product } from '../data';
-import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload, Key, ShieldCheck, RefreshCw } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 
 
@@ -58,6 +58,28 @@ export default function Admin({
   const [reviews, setReviews] = useState<any[]>([]);
   const [deleteReviewConfirm, setDeleteReviewConfirm] = useState<any | null>(null);
   const [reviewActionLoading, setReviewActionLoading] = useState<string | null>(null);
+
+  const [adminUsers, setAdminUsers] = useState<{ username: string }[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserError, setNewUserError] = useState('');
+  const [newUserSuccess, setNewUserSuccess] = useState('');
+  const [newUserLoading, setNewUserLoading] = useState(false);
+  const [editingUser, setEditingUser] = useState<string | null>(null);
+  const [editPassword, setEditPassword] = useState('');
+  const [editPasswordError, setEditPasswordError] = useState('');
+  const [editPasswordSuccess, setEditPasswordSuccess] = useState('');
+  const [editPasswordLoading, setEditPasswordLoading] = useState(false);
+  const [deleteUserConfirm, setDeleteUserConfirm] = useState<string | null>(null);
+  const [deleteUserError, setDeleteUserError] = useState('');
+  const [deleteUserLoading, setDeleteUserLoading] = useState(false);
+  
+  const [configEditing, setConfigEditing] = useState(false);
+  const [tempConfig, setTempConfig] = useState(storeConfig || {});
+  
+        const fetchAdminUsers = async () => {};
+
   
   const fetchReviewsAdmin = async () => {
     const { data } = await supabase.from('store_config').select('store_name').eq('id', 'reviews_data').single();
@@ -110,6 +132,21 @@ export default function Admin({
     }
   };
 
+  
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsAuthenticated(!!session);
+      setAuthLoading(false);
+    });
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchReviewsAdmin();
@@ -123,56 +160,21 @@ export default function Admin({
     }
   }, [isAuthenticated]);
 
-  const [configEditing, setConfigEditing] = useState(false);
-  const [tempConfig, setTempConfig] = useState(storeConfig);
-
-  // User management state
-  const [newUsername, setNewUsername] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserError, setNewUserError] = useState('');
-  const [newUserSuccess, setNewUserSuccess] = useState('');
-  
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-
-  useEffect(() => {
-    const checkAuth = () => {
-      const isAuth = sessionStorage.getItem('admin_auth') === 'true';
-      setIsAuthenticated(isAuth);
-      setAuthLoading(false);
-    };
-    checkAuth();
-  }, []);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const trimmedUsername = username.trim();
     
     try {
-      const { supabase } = await import('../supabase');
+      const email = username.includes('@') ? username.trim() : `${username.trim()}@pixelcero.com`;
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      const hashedInput = await hashPassword(password);
-      
-      const { data, error: fetchError } = await supabase
-        .from('admin_users')
-        .select('*')
-        .eq('username', trimmedUsername)
-        .single();
-        
-      if (data && data.password_hash === hashedInput) {
-        setIsAuthenticated(true);
-        sessionStorage.setItem('admin_auth', 'true');
-        sessionStorage.setItem('admin_user', trimmedUsername);
-        return;
-      } else if (data) {
-        setError('Contraseña incorrecta.');
+      if (authError) {
+        setError('Credenciales incorrectas o correo no confirmado.');
         return;
       }
-
-      setError('Credenciales incorrectas o usuario no existe.');
     } catch (err: any) {
       console.error('Login error:', err);
       setError('Error al iniciar sesión.');
@@ -180,9 +182,7 @@ export default function Admin({
   };
 
   const handleLogout = async () => {
-    sessionStorage.removeItem('admin_auth');
-    sessionStorage.removeItem('admin_user');
-    setIsAuthenticated(false);
+    await supabase.auth.signOut();
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -195,67 +195,124 @@ export default function Admin({
       return;
     }
     
+    const targetUsername = newUsername.trim().toLowerCase();
+    if (!targetUsername) {
+      setNewUserError('Ingresa un nombre de usuario válido.');
+      return;
+    }
+
+    setNewUserLoading(true);
     try {
-      const { supabase } = await import('../supabase');
+      const { data: userSnap } = await supabase
+        .from('admin_users')
+        .select('username')
+        .eq('username', targetUsername)
+        .maybeSingle();
       
-      const targetUsername = newUsername.trim();
-      const { data: userSnap } = await supabase.from('admin_users').select('*').eq('username', targetUsername).single();
-      
-      if (userSnap || targetUsername === 'jeffryalonso') {
-        setNewUserError('El usuario ya existe.');
+      if (userSnap) {
+        setNewUserError(`El usuario '${targetUsername}' ya existe.`);
+        setNewUserLoading(false);
         return;
       }
       
       const passwordHash = await hashPassword(newUserPassword);
-      await supabase.from('admin_users').insert({
+      const { error: insertErr } = await supabase.from('admin_users').insert({
         username: targetUsername,
         password_hash: passwordHash
       });
+
+      if (insertErr) {
+        setNewUserError('Error al crear usuario: ' + insertErr.message);
+        setNewUserLoading(false);
+        return;
+      }
       
       setNewUserSuccess(`Usuario '${targetUsername}' creado exitosamente.`);
       setNewUsername('');
       setNewUserPassword('');
+      await fetchAdminUsers();
     } catch (err: any) {
       console.error(err);
       setNewUserError('Error al crear usuario.');
+    } finally {
+      setNewUserLoading(false);
     }
   };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPasswordError('');
-    setPasswordSuccess('');
-    
-    if (newPassword.length < 6) {
-      setPasswordError('La nueva contraseña debe tener al menos 6 caracteres');
+    if (!editingUser) return;
+    setEditPasswordError('');
+    setEditPasswordSuccess('');
+
+    if (editPassword.length < 6) {
+      setEditPasswordError('La nueva contraseña debe tener al menos 6 caracteres');
       return;
     }
-    
+
+    setEditPasswordLoading(true);
     try {
-      const { supabase } = await import('../supabase');
-      
-      const currentUser = sessionStorage.getItem('admin_user');
-      if (!currentUser || currentUser === 'jeffryalonso') {
-        setPasswordError('No se puede cambiar la contraseña del administrador por defecto.');
+      const passwordHash = await hashPassword(editPassword);
+      const { error: updateErr } = await supabase
+        .from('admin_users')
+        .update({ password_hash: passwordHash })
+        .eq('username', editingUser);
+
+      if (updateErr) {
+        setEditPasswordError('Error al actualizar contraseña: ' + updateErr.message);
+        setEditPasswordLoading(false);
         return;
       }
-      
-      const { data: userSnap } = await supabase.from('admin_users').select('*').eq('username', currentUser).single();
-      
-      const passwordHash = await hashPassword(newPassword);
-      
-      if (userSnap) {
-        await supabase.from('admin_users').update({ password_hash: passwordHash }).eq('username', currentUser);
-      } else {
-        setPasswordError('Usuario no encontrado en la base de datos.');
-        return;
-      }
-      
-      setPasswordSuccess('Contraseña actualizada correctamente.');
-      setNewPassword('');
+
+      setEditPasswordSuccess(`Contraseña de '${editingUser}' actualizada correctamente.`);
+      setTimeout(() => {
+        setEditingUser(null);
+        setEditPassword('');
+        setEditPasswordSuccess('');
+      }, 1500);
     } catch (err: any) {
       console.error(err);
-      setPasswordError('Error al actualizar la contraseña.');
+      setEditPasswordError('Error al actualizar la contraseña.');
+    } finally {
+      setEditPasswordLoading(false);
+    }
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deleteUserConfirm) return;
+    setDeleteUserError('');
+    const currentUser = sessionStorage.getItem('admin_user');
+    
+    if (deleteUserConfirm === currentUser) {
+      setDeleteUserError('No puedes eliminar el usuario con el que tienes sesión iniciada actualmente.');
+      return;
+    }
+
+    if (adminUsers.length <= 1) {
+      setDeleteUserError('No se puede eliminar el único usuario administrador restante.');
+      return;
+    }
+
+    setDeleteUserLoading(true);
+    try {
+      const { error: delErr } = await supabase
+        .from('admin_users')
+        .delete()
+        .eq('username', deleteUserConfirm);
+
+      if (delErr) {
+        setDeleteUserError('Error al eliminar usuario: ' + delErr.message);
+        setDeleteUserLoading(false);
+        return;
+      }
+
+      setDeleteUserConfirm(null);
+      await fetchAdminUsers();
+    } catch (err: any) {
+      console.error(err);
+      setDeleteUserError('Error al eliminar usuario.');
+    } finally {
+      setDeleteUserLoading(false);
     }
   };
 
@@ -956,70 +1013,20 @@ export default function Admin({
           </div>
         )}
 
-        {activeTab === 'users' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-              <h2 className="text-2xl font-semibold mb-6">Cambiar Contraseña</h2>
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Nueva Contraseña</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all"
-                    style={{ fontFamily: 'caption' }}
-                    required
-                  />
-                </div>
-                {passwordError && <p className="text-red-500 text-sm">{passwordError}</p>}
-                {passwordSuccess && <p className="text-green-500 text-sm">{passwordSuccess}</p>}
-                <button
-                  type="submit"
-                  className="px-8 py-4 bg-apple-text text-white rounded-full font-medium hover:bg-black transition-colors w-full"
-                >
-                  Actualizar Contraseña
-                </button>
-              </form>
-            </div>
-            
-            <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-              <h2 className="text-2xl font-semibold mb-6">Añadir Nuevo Usuario</h2>
-              <p className="text-apple-gray text-sm mb-6">Crea una nueva cuenta de administrador para esta tienda.</p>
-              <form onSubmit={handleCreateUser} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Usuario</label>
-                  <input
-                    type="text"
-                    value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value)}
-                    className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Contraseña</label>
-                  <input
-                    type="password"
-                    value={newUserPassword}
-                    onChange={(e) => setNewUserPassword(e.target.value)}
-                    className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all"
-                    style={{ fontFamily: 'caption' }}
-                    required
-                  />
-                </div>
-                {newUserError && <p className="text-red-500 text-sm">{newUserError}</p>}
-                {newUserSuccess && <p className="text-green-500 text-sm">{newUserSuccess}</p>}
-                <button
-                  type="submit"
-                  className="px-8 py-4 bg-apple-blue text-white rounded-full font-medium hover:bg-apple-blue-hover transition-colors w-full"
-                >
-                  Crear Usuario
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
+{activeTab === 'users' && (
+  <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 text-center py-16">
+    <ShieldCheck size={48} className="mx-auto text-green-500 mb-4" />
+    <h2 className="text-2xl font-semibold mb-2">Seguridad Mejorada Activada</h2>
+    <p className="text-apple-gray max-w-lg mx-auto mb-6">
+      Por motivos de seguridad (vulnerabilidad de exposición de hashes), la gestión de usuarios ha sido migrada a <strong>Supabase Auth</strong>.
+      Ya no es posible crear o eliminar administradores desde este panel público.
+    </p>
+    <p className="text-sm text-apple-gray">
+      Para añadir o eliminar usuarios, por favor ingresa a tu panel de Supabase: <br/>
+      <span className="font-semibold text-apple-text">Authentication &gt; Users</span>
+    </p>
+  </div>
+)}
       </div>
     </div>
   );
