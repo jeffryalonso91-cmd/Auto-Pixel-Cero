@@ -36,7 +36,7 @@ export default function SocialLinks({ config, size = 18, className = "", variant
 
   if (variant === 'header') {
     return (
-      <div className={`flex items-center gap-1.5 text-apple-text/80 ${className}`}>
+      <div className={`flex items-center gap-1 sm:gap-2 text-apple-text/80 shrink-0 flex-nowrap ${className}`}>
         {instagram && (
           <a
             href={instagram}
@@ -44,9 +44,9 @@ export default function SocialLinks({ config, size = 18, className = "", variant
             rel="noreferrer"
             aria-label="Instagram"
             title="Instagram"
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5 hover:text-pink-600 transition-all active:scale-95"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 hover:bg-black/5 hover:text-pink-600 transition-all active:scale-90"
           >
-            <Instagram size={size} />
+            <Instagram size={size} className="shrink-0" />
           </a>
         )}
         {facebook && (
@@ -56,9 +56,9 @@ export default function SocialLinks({ config, size = 18, className = "", variant
             rel="noreferrer"
             aria-label="Facebook"
             title="Facebook"
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5 hover:text-blue-600 transition-all active:scale-95"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 hover:bg-black/5 hover:text-blue-600 transition-all active:scale-90"
           >
-            <Facebook size={size} />
+            <Facebook size={size} className="shrink-0" />
           </a>
         )}
         {tiktok && (
@@ -68,9 +68,9 @@ export default function SocialLinks({ config, size = 18, className = "", variant
             rel="noreferrer"
             aria-label="TikTok"
             title="TikTok"
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/5 hover:text-black transition-all active:scale-95"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 hover:bg-black/5 hover:text-black transition-all active:scale-90"
           >
-            <TikTokSvg size={size} />
+            <TikTokSvg size={size} className="shrink-0" />
           </a>
         )}
       </div>
