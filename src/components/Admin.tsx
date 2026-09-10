@@ -13,34 +13,17 @@ async function hashPassword(password: string) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// High-resolution WebP compression (1600px Retina resolution, 0.88 quality, max 0.45MB)
+// Provides pristine sharpness for 2.5x zoom while keeping file size around 200-300KB
+// so Supabase saves in under 1 second without database statement timeouts.
 const processProductImageUltraHD = async (file: File): Promise<string> => {
   try {
-    // If the file is already a lightweight image under 1.8MB, check if dimensions are within 2560px
-    if (file.size <= 1.8 * 1024 * 1024 && (file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp')) {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const fitsDimensions = await new Promise<boolean>((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(img.width <= 2560 && img.height <= 2560);
-        img.onerror = () => resolve(false);
-        img.src = dataUrl;
-      });
-      if (fitsDimensions) {
-        return dataUrl;
-      }
-    }
-
-    // High fidelity compression preserving maximum sharpness, details, and 2.5K resolution
     const options = {
-      maxSizeMB: 2.5,
-      maxWidthOrHeight: 2560,
+      maxSizeMB: 0.45,
+      maxWidthOrHeight: 1600,
       useWebWorker: true,
-      fileType: 'image/jpeg',
-      initialQuality: 0.95
+      fileType: 'image/webp',
+      initialQuality: 0.88
     };
     const compressedFile = await imageCompression(file, options);
     return await imageCompression.getDataUrlFromFile(compressedFile);
@@ -52,7 +35,7 @@ const processProductImageUltraHD = async (file: File): Promise<string> => {
         const img = new Image();
         img.onload = () => {
           let { width, height } = img;
-          const maxDim = 2560;
+          const maxDim = 1600;
           if (width > maxDim || height > maxDim) {
             if (width > height) {
               height = Math.round((height * maxDim) / width);
@@ -73,7 +56,11 @@ const processProductImageUltraHD = async (file: File): Promise<string> => {
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.95));
+          let dataUrl = canvas.toDataURL('image/webp', 0.88);
+          if (!dataUrl.startsWith('data:image/webp')) {
+            dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+          }
+          resolve(dataUrl);
         };
         img.onerror = () => resolve(reader.result as string);
         img.src = reader.result as string;
@@ -82,6 +69,48 @@ const processProductImageUltraHD = async (file: File): Promise<string> => {
       reader.readAsDataURL(file);
     });
   }
+};
+
+// Optimizes oversized base64 images before saving to database to prevent statement timeouts
+const optimizeBase64ImageIfNeeded = async (dataUrl: string): Promise<string> => {
+  if (!dataUrl || !dataUrl.startsWith('data:image/')) return dataUrl;
+  // If under ~450KB base64 string, it's already light enough to save fast
+  if (dataUrl.length < 450 * 1024) return dataUrl;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      const maxDim = 1600;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+      let optimized = canvas.toDataURL('image/webp', 0.88);
+      if (!optimized.startsWith('data:image/webp')) {
+        optimized = canvas.toDataURL('image/jpeg', 0.88);
+      }
+      resolve(optimized);
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 };
 
 const processImageFile = async (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
@@ -401,6 +430,12 @@ export default function Admin({
         }
       }
 
+      const rawImages = finalImages;
+      // Sanitize all images on-the-fly to guarantee fast saving without DB statement timeout
+      const sanitizedImages = await Promise.all(
+        rawImages.map(img => optimizeBase64ImageIfNeeded(img))
+      );
+
       const product: Product = {
         id: editing?.id || Date.now().toString(),
         model: (formData.get('model') as string)?.trim() || 'iPhone',
@@ -409,7 +444,7 @@ export default function Admin({
         battery: (formData.get('battery') as string)?.trim() || '100%',
         price: Number(formData.get('price')) || 0,
         status: (formData.get('status') as 'Disponible' | 'Vendido') || 'Disponible',
-        images: finalImages,
+        images: sanitizedImages,
       };
 
       const { error } = await supabase.from('products').upsert(product);
@@ -708,12 +743,12 @@ export default function Admin({
                       {uploadingImages ? (
                         <div className="flex items-center gap-2 text-apple-blue font-medium py-2">
                           <div className="w-4 h-4 border-2 border-apple-blue border-t-transparent rounded-full animate-spin" />
-                          <span>Cargando fotos en Ultra HD 2.5K...</span>
+                          <span>Procesando fotos en Alta Definición (1600px)...</span>
                         </div>
                       ) : (
                         <>
-                          <span className="font-medium mb-1 text-apple-text">Subir fotos en Alta Calidad (Ultra HD)</span>
-                          <span className="text-xs text-apple-gray">Formatos: JPG, PNG, WEBP &middot; Máxima nitidez (hasta 2.5K con 95% de calidad) para zoom de detalles</span>
+                          <span className="font-medium mb-1 text-apple-text">Subir fotos en Alta Calidad (HD)</span>
+                          <span className="text-xs text-apple-gray">Formatos: JPG, PNG, WEBP &middot; Nitidez 1600px óptima para zoom, optimizada para guardado instantáneo</span>
                         </>
                       )}
                       <input 
