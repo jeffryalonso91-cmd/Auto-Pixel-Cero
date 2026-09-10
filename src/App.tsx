@@ -5,6 +5,7 @@ import ErrorBoundary from './components/ErrorBoundary';
  */
 
 import { useState, useEffect, createContext, lazy, Suspense } from 'react';
+import localforage from 'localforage';
 import { supabase } from './supabase';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -52,6 +53,13 @@ export default function App() {
 
     if (!isMounted) return;
 
+    // Load from durable localforage cache if available
+    localforage.getItem<Product[]>('pixelcero_products_cache').then((cached) => {
+      if (cached && Array.isArray(cached) && cached.length > 0 && isMounted) {
+        setProducts(cached);
+      }
+    }).catch(() => {});
+
     // Subscriptions (Supabase Realtime)
     productsSubscription = supabase
       .channel('products_changes_' + Math.random().toString(36).substring(7))
@@ -60,6 +68,7 @@ export default function App() {
            if (data && data.length > 0 && isMounted) {
              setProducts(data as Product[]);
              try { localStorage.setItem('pixelcero_products_cache', JSON.stringify(data)); } catch (e) {}
+             localforage.setItem('pixelcero_products_cache', data).catch(() => {});
            }
          });
       })
@@ -114,6 +123,7 @@ export default function App() {
         try {
           localStorage.setItem('pixelcero_products_cache', JSON.stringify(data));
         } catch (e) {}
+        localforage.setItem('pixelcero_products_cache', data).catch(() => {});
       }
     });
 
