@@ -2,108 +2,353 @@ import { motion, AnimatePresence, useInView } from 'motion/react';
 import { useContext } from 'react';
 import { ConfigContext } from '../App';
 import type { Product } from '../data';
-import { MessageCircle, X, ChevronLeft, ChevronRight, Search } from 'lucide-react';
-import React, { useState, useMemo, useRef } from 'react';
+import { MessageCircle, X, ChevronLeft, ChevronRight, Search, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 
 function Lightbox({ images, onClose }: { images: string[], onClose: () => void }) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+
+  // References for touch & mouse tracking
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
   const touchEndY = useRef<number | null>(null);
+  const pinchStartDist = useRef<number | null>(null);
+  const pinchStartScale = useRef<number>(1);
+  const dragStart = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
+  const hasMoved = useRef<boolean>(false);
+  const lastTapTime = useRef<number>(0);
+  const isMouseDown = useRef<boolean>(false);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
 
-  const next = (e?: React.MouseEvent | React.TouchEvent) => {
+  // Reset zoom and pan when changing image
+  const resetZoom = useCallback(() => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  }, []);
+
+  const next = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
     if (e && 'stopPropagation' in e) e.stopPropagation();
+    resetZoom();
     setCurrentIndex((prev) => (prev + 1) % images.length);
-  };
+  }, [images.length, resetZoom]);
 
-  const prev = (e?: React.MouseEvent | React.TouchEvent) => {
+  const prev = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
     if (e && 'stopPropagation' in e) e.stopPropagation();
+    resetZoom();
     setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+  }, [images.length, resetZoom]);
+
+  const handleZoomIn = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setScale((s) => Math.min(4, Math.round((s + 0.5) * 10) / 10));
   };
 
+  const handleZoomOut = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setScale((s) => {
+      const nextScale = Math.max(1, Math.round((s - 0.5) * 10) / 10);
+      if (nextScale === 1) setPosition({ x: 0, y: 0 });
+      return nextScale;
+    });
+  };
+
+  const handleToggleZoom = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (scale > 1) {
+      resetZoom();
+    } else {
+      setScale(2.5);
+    }
+  };
+
+  // Keyboard navigation & zoom shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (scale > 1) {
+          resetZoom();
+        } else {
+          onClose();
+        }
+      } else if (e.key === 'ArrowRight' && scale === 1) {
+        next();
+      } else if (e.key === 'ArrowLeft' && scale === 1) {
+        prev();
+      } else if (e.key === '+' || e.key === '=') {
+        setScale((s) => Math.min(4, Math.round((s + 0.5) * 10) / 10));
+      } else if (e.key === '-') {
+        setScale((s) => {
+          const next = Math.max(1, Math.round((s - 0.5) * 10) / 10);
+          if (next === 1) setPosition({ x: 0, y: 0 });
+          return next;
+        });
+      } else if (e.key === '0') {
+        resetZoom();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [scale, next, prev, onClose, resetZoom]);
+
+  // Touch handling with Pinch-to-zoom & Pan & Swipe
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    touchEndX.current = e.touches[0].clientX;
-    touchEndY.current = e.touches[0].clientY;
+    if (e.touches.length === 2) {
+      // 2 fingers = Pinch to zoom
+      pinchStartDist.current = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinchStartScale.current = scale;
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      const clientX = e.touches[0].clientX;
+      const clientY = e.touches[0].clientY;
+      touchStartX.current = clientX;
+      touchStartY.current = clientY;
+      touchEndX.current = clientX;
+      touchEndY.current = clientY;
+      hasMoved.current = false;
+      dragStart.current = {
+        x: clientX - position.x,
+        y: clientY - position.y
+      };
+      if (scale > 1) {
+        setIsDragging(true);
+      }
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
-    touchEndY.current = e.touches[0].clientY;
+    // Two-finger pinch
+    if (e.touches.length === 2 && pinchStartDist.current !== null) {
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const ratio = currentDist / pinchStartDist.current;
+      const newScale = Math.min(4, Math.max(1, Math.round((pinchStartScale.current * ratio) * 10) / 10));
+      setScale(newScale);
+      if (newScale === 1) {
+        setPosition({ x: 0, y: 0 });
+      }
+      return;
+    }
+
+    // Single finger
+    if (e.touches.length === 1) {
+      const clientX = e.touches[0].clientX;
+      const clientY = e.touches[0].clientY;
+      touchEndX.current = clientX;
+      touchEndY.current = clientY;
+
+      if (scale > 1) {
+        hasMoved.current = true;
+        const newX = clientX - dragStart.current.x;
+        const newY = clientY - dragStart.current.y;
+        const maxPanX = (window.innerWidth * (scale - 1)) / 1.8 + 80;
+        const maxPanY = (window.innerHeight * (scale - 1)) / 1.8 + 80;
+        setPosition({
+          x: Math.max(-maxPanX, Math.min(maxPanX, newX)),
+          y: Math.max(-maxPanY, Math.min(maxPanY, newY))
+        });
+      }
+    }
   };
 
   const handleTouchEnd = () => {
-    if (touchStartX.current === null || touchEndX.current === null) return;
-    const diffX = touchStartX.current - touchEndX.current;
-    const diffY = (touchStartY.current || 0) - (touchEndY.current || 0);
+    setIsDragging(false);
 
-    // 35px threshold for horizontal swipe
-    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
-      if (diffX > 0) {
-        // Swiped left -> next
-        setCurrentIndex((prev) => (prev + 1) % images.length);
+    if (pinchStartDist.current !== null) {
+      pinchStartDist.current = null;
+      return;
+    }
+
+    const now = Date.now();
+    // Check for double tap
+    if (!hasMoved.current && now - lastTapTime.current < 320) {
+      lastTapTime.current = 0;
+      if (scale > 1) {
+        resetZoom();
       } else {
-        // Swiped right -> prev
-        setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+        setScale(2.5);
+      }
+      return;
+    }
+    lastTapTime.current = now;
+
+    // Single finger swipe only if scale is 1
+    if (scale === 1 && touchStartX.current !== null && touchEndX.current !== null) {
+      const diffX = touchStartX.current - touchEndX.current;
+      const diffY = (touchStartY.current || 0) - (touchEndY.current || 0);
+
+      // 40px threshold for swipe
+      if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY)) {
+        if (diffX > 0) {
+          next();
+        } else {
+          prev();
+        }
       }
     }
+
     touchStartX.current = null;
     touchEndX.current = null;
     touchStartY.current = null;
     touchEndY.current = null;
   };
 
-  // Keyboard navigation
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowRight') setCurrentIndex((p) => (p + 1) % images.length);
-      if (e.key === 'ArrowLeft') setCurrentIndex((p) => (p - 1 + images.length) % images.length);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [images.length, onClose]);
+  // Mouse drag handlers for desktop pan
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (scale > 1) {
+      e.preventDefault();
+      isMouseDown.current = true;
+      setIsDragging(true);
+      hasMoved.current = false;
+      dragStart.current = {
+        x: e.clientX - position.x,
+        y: e.clientY - position.y
+      };
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isMouseDown.current && scale > 1) {
+      hasMoved.current = true;
+      const newX = e.clientX - dragStart.current.x;
+      const newY = e.clientY - dragStart.current.y;
+      const maxPanX = (window.innerWidth * (scale - 1)) / 1.8 + 80;
+      const maxPanY = (window.innerHeight * (scale - 1)) / 1.8 + 80;
+      setPosition({
+        x: Math.max(-maxPanX, Math.min(maxPanX, newX)),
+        y: Math.max(-maxPanY, Math.min(maxPanY, newY))
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    isMouseDown.current = false;
+    setIsDragging(false);
+  };
+
+  // Wheel zoom on desktop
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const delta = e.deltaY < 0 ? 0.3 : -0.3;
+    setScale((s) => {
+      const nextScale = Math.min(4, Math.max(1, Math.round((s + delta) * 10) / 10));
+      if (nextScale === 1) setPosition({ x: 0, y: 0 });
+      return nextScale;
+    });
+  };
 
   return (
     <motion.div 
-      className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-6 select-none touch-none"
+      className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center select-none touch-none overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      onClick={onClose}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      onClick={(e) => {
+        if (scale > 1) {
+          resetZoom();
+        } else {
+          onClose();
+        }
+      }}
+      onMouseUp={handleMouseUp}
+      onWheel={handleWheel}
     >
-      {/* Top bar with count & close */}
-      <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20 pointer-events-none">
-        {images.length > 1 ? (
-          <div className="bg-black/50 backdrop-blur-md text-white/90 text-xs sm:text-sm font-medium px-3 py-1.5 rounded-full border border-white/10 pointer-events-auto">
-            {currentIndex + 1} de {images.length}
-          </div>
-        ) : <div />}
+      {/* Top bar with count, zoom controls & close button */}
+      <div 
+        className="absolute top-4 left-4 right-4 flex items-center justify-between z-30 pointer-events-none"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Left: Image Counter */}
+        <div className="flex items-center gap-2">
+          {images.length > 1 && (
+            <div className="bg-black/60 backdrop-blur-md text-white/90 text-xs sm:text-sm font-medium px-3.5 py-1.5 rounded-full border border-white/10 pointer-events-auto shadow-lg">
+              {currentIndex + 1} de {images.length}
+            </div>
+          )}
+        </div>
+
+        {/* Center: Zoom Controls Toolbar */}
+        <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-white/10 pointer-events-auto shadow-lg">
+          <button 
+            type="button"
+            onClick={handleZoomOut}
+            disabled={scale <= 1}
+            className={`p-1.5 text-white/80 hover:text-white rounded-full transition-colors active:scale-90 ${scale <= 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/10'}`}
+            title="Reducir zoom"
+            aria-label="Reducir zoom"
+          >
+            <ZoomOut size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleZoom}
+            className="px-2.5 py-1 text-white text-xs sm:text-sm font-semibold hover:bg-white/10 rounded-full transition-colors active:scale-95"
+            title="Cambiar nivel de zoom"
+          >
+            {Math.round(scale * 100)}%
+          </button>
+
+          <button 
+            type="button"
+            onClick={handleZoomIn}
+            disabled={scale >= 4}
+            className={`p-1.5 text-white/80 hover:text-white rounded-full transition-colors active:scale-90 ${scale >= 4 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/10'}`}
+            title="Aumentar zoom"
+            aria-label="Aumentar zoom"
+          >
+            <ZoomIn size={18} />
+          </button>
+
+          {scale > 1 && (
+            <button
+              type="button"
+              onClick={resetZoom}
+              className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors active:scale-90 ml-0.5 border-l border-white/15 pl-2"
+              title="Restablecer tamaño original (100%)"
+              aria-label="Restablecer zoom"
+            >
+              <RotateCcw size={16} />
+            </button>
+          )}
+        </div>
+
+        {/* Right: Close button */}
         <button 
-          className="text-white/80 hover:text-white p-2.5 transition-colors bg-black/50 hover:bg-black/70 backdrop-blur-md rounded-full border border-white/10 pointer-events-auto active:scale-95"
-          onClick={onClose}
+          className="text-white/80 hover:text-white p-2.5 transition-colors bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full border border-white/10 pointer-events-auto active:scale-95 shadow-lg"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           aria-label="Cerrar galería"
         >
-          <X size={24} />
+          <X size={22} />
         </button>
       </div>
 
-      {images.length > 1 && (
+      {/* Navigation Chevrons (only visible when not zoomed in to avoid blocking pan) */}
+      {images.length > 1 && scale === 1 && (
         <>
           <button 
-            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-3 z-20 transition-all bg-black/40 hover:bg-black/60 backdrop-blur-md rounded-full border border-white/10 hidden sm:flex items-center justify-center active:scale-90"
+            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-3 z-20 transition-all bg-black/40 hover:bg-black/70 backdrop-blur-md rounded-full border border-white/10 hidden sm:flex items-center justify-center active:scale-90 shadow-xl"
             onClick={prev}
             aria-label="Foto anterior"
           >
             <ChevronLeft size={28} />
           </button>
           <button 
-            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-3 z-20 transition-all bg-black/40 hover:bg-black/60 backdrop-blur-md rounded-full border border-white/10 hidden sm:flex items-center justify-center active:scale-90"
+            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-3 z-20 transition-all bg-black/40 hover:bg-black/70 backdrop-blur-md rounded-full border border-white/10 hidden sm:flex items-center justify-center active:scale-90 shadow-xl"
             onClick={next}
             aria-label="Siguiente foto"
           >
@@ -112,35 +357,70 @@ function Lightbox({ images, onClose }: { images: string[], onClose: () => void }
         </>
       )}
 
+      {/* Main Image Viewport with Pan & Zoom */}
       <div 
-        className="relative w-full max-w-5xl h-full flex flex-col items-center justify-center" 
+        ref={imageContainerRef}
+        className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden p-2 sm:p-6" 
         onClick={(e) => e.stopPropagation()}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onDoubleClick={handleToggleZoom}
       >
         <motion.img 
           key={currentIndex}
           src={images[currentIndex]} 
           alt={`Vista en HD ${currentIndex + 1}`}
           decoding="async"
-          initial={{ opacity: 0.6, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
+          draggable={false}
+          initial={{ opacity: 0.6 }}
+          animate={{ opacity: 1 }}
           transition={{ duration: 0.2 }}
+          style={{
+            transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+            transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            cursor: scale === 1 ? 'zoom-in' : (isDragging ? 'grabbing' : 'grab'),
+          }}
           onError={(e) => {
             e.currentTarget.src = 'https://images.unsplash.com/photo-1678652197831-2d180705cd2c?auto=format&fit=crop&q=80&w=1200';
           }}
-          className="max-w-full max-h-[75vh] sm:max-h-[82vh] object-contain rounded-2xl shadow-2xl pointer-events-none"
+          className="max-w-[95vw] max-h-[72vh] sm:max-h-[80vh] object-contain rounded-2xl shadow-2xl pointer-events-auto select-none"
         />
         
-        {images.length > 1 && (
-          <div className="mt-4 flex flex-col items-center gap-2">
-            <div className="flex justify-center gap-1.5 sm:gap-2">
+        {/* Bottom controls / info */}
+        <div 
+          className="absolute bottom-4 left-0 right-0 flex flex-col items-center gap-2 pointer-events-none px-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Zoom Instruction or Pan Status */}
+          {scale > 1 ? (
+            <div className="bg-black/70 backdrop-blur-md text-white/90 text-xs sm:text-sm font-medium px-4 py-1.5 rounded-full border border-white/15 pointer-events-auto flex items-center gap-2 shadow-lg">
+              <span>Zoom activo ({Math.round(scale * 100)}%) &middot; Arrastra para examinar detalles</span>
+              <button 
+                onClick={resetZoom}
+                className="text-apple-blue hover:underline font-semibold ml-1"
+              >
+                100%
+              </button>
+            </div>
+          ) : (
+            <div className="bg-black/40 backdrop-blur-md text-white/70 text-[11px] sm:text-xs font-normal px-3 py-1 rounded-full border border-white/10 pointer-events-none shadow">
+              Doble clic o pellizca para hacer zoom en detalles
+            </div>
+          )}
+
+          {/* Dots Indicator */}
+          {images.length > 1 && scale === 1 && (
+            <div className="flex justify-center gap-1.5 sm:gap-2 pointer-events-auto pt-1">
               {images.map((_, i) => (
                 <button 
                   key={i} 
                   onClick={(e) => {
                     e.stopPropagation();
+                    resetZoom();
                     setCurrentIndex(i);
                   }}
                   aria-label={`Ver foto ${i + 1}`}
@@ -148,11 +428,8 @@ function Lightbox({ images, onClose }: { images: string[], onClose: () => void }
                 />
               ))}
             </div>
-            <span className="text-white/50 text-[11px] font-normal sm:hidden">
-              Desliza el dedo para ver más fotos
-            </span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </motion.div>
   );

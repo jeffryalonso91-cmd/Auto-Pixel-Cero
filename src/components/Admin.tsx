@@ -13,32 +13,53 @@ async function hashPassword(password: string) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-const compressImageToWebp = async (file: File, maxDimension = 1200): Promise<string> => {
+const processProductImageUltraHD = async (file: File): Promise<string> => {
   try {
+    // If the file is already a lightweight image under 1.8MB, check if dimensions are within 2560px
+    if (file.size <= 1.8 * 1024 * 1024 && (file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp')) {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const fitsDimensions = await new Promise<boolean>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img.width <= 2560 && img.height <= 2560);
+        img.onerror = () => resolve(false);
+        img.src = dataUrl;
+      });
+      if (fitsDimensions) {
+        return dataUrl;
+      }
+    }
+
+    // High fidelity compression preserving maximum sharpness, details, and 2.5K resolution
     const options = {
-      maxSizeMB: 0.25,
-      maxWidthOrHeight: maxDimension,
+      maxSizeMB: 2.5,
+      maxWidthOrHeight: 2560,
       useWebWorker: true,
-      fileType: 'image/webp',
-      initialQuality: 0.82
+      fileType: 'image/jpeg',
+      initialQuality: 0.95
     };
     const compressedFile = await imageCompression(file, options);
     return await imageCompression.getDataUrlFromFile(compressedFile);
   } catch (err) {
-    console.warn('Canvas fallback compression:', err);
+    console.warn('Canvas fallback Ultra HD:', err);
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => {
         const img = new Image();
         img.onload = () => {
           let { width, height } = img;
-          if (width > maxDimension || height > maxDimension) {
+          const maxDim = 2560;
+          if (width > maxDim || height > maxDim) {
             if (width > height) {
-              height = Math.round((height * maxDimension) / width);
-              width = maxDimension;
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
             } else {
-              width = Math.round((width * maxDimension) / height);
-              height = maxDimension;
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
             }
           }
           const canvas = document.createElement('canvas');
@@ -49,12 +70,10 @@ const compressImageToWebp = async (file: File, maxDimension = 1200): Promise<str
             resolve(reader.result as string);
             return;
           }
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
-          let dataUrl = canvas.toDataURL('image/webp', 0.82);
-          if (!dataUrl.startsWith('data:image/webp')) {
-            dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-          }
-          resolve(dataUrl);
+          resolve(canvas.toDataURL('image/jpeg', 0.95));
         };
         img.onerror = () => resolve(reader.result as string);
         img.src = reader.result as string;
@@ -66,7 +85,7 @@ const compressImageToWebp = async (file: File, maxDimension = 1200): Promise<str
 };
 
 const processImageFile = async (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
-  return compressImageToWebp(file, Math.min(Math.max(maxWidth, maxHeight), 1200));
+  return processProductImageUltraHD(file);
 };
 
 export default function Admin({
@@ -689,12 +708,12 @@ export default function Admin({
                       {uploadingImages ? (
                         <div className="flex items-center gap-2 text-apple-blue font-medium py-2">
                           <div className="w-4 h-4 border-2 border-apple-blue border-t-transparent rounded-full animate-spin" />
-                          <span>Optimizando fotos para carga rápida...</span>
+                          <span>Cargando fotos en Ultra HD 2.5K...</span>
                         </div>
                       ) : (
                         <>
-                          <span className="font-medium mb-1 text-apple-text">Subir fotos desde tu dispositivo</span>
-                          <span className="text-xs">Formatos soportados: JPG, PNG, WEBP (se optimizan automáticamente)</span>
+                          <span className="font-medium mb-1 text-apple-text">Subir fotos en Alta Calidad (Ultra HD)</span>
+                          <span className="text-xs text-apple-gray">Formatos: JPG, PNG, WEBP &middot; Máxima nitidez (hasta 2.5K con 95% de calidad) para zoom de detalles</span>
                         </>
                       )}
                       <input 
@@ -709,12 +728,12 @@ export default function Admin({
                           const files = Array.from(e.target.files) as File[];
                           try {
                             const newImages = await Promise.all(
-                              files.map(file => compressImageToWebp(file, 1200))
+                              files.map(file => processProductImageUltraHD(file))
                             );
                             const validImages = newImages.filter(Boolean);
                             setEditingImages(prev => [...prev, ...validImages]);
                           } catch (error) {
-                            console.error('Error compressing image', error);
+                            console.error('Error processing high quality image', error);
                           } finally {
                             setUploadingImages(false);
                             e.target.value = '';
