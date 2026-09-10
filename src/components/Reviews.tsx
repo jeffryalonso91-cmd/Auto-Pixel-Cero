@@ -11,25 +11,76 @@ export interface Review {
   status: 'published' | 'hidden';
 }
 
+const DEFAULT_REVIEWS: Review[] = [
+  {
+    id: "qv6lhxrqk",
+    author: "Cubero P",
+    rating: 4,
+    content: "Excelente atención y servicio. El teléfono impecable, solo un par de rayones al costado pero me los mostraron desde el inicio así que todo bien. Recomendados",
+    createdAt: "2026-09-09T01:29:13.040Z",
+    status: "published"
+  },
+  {
+    id: "1",
+    author: "Carlos M.",
+    rating: 5,
+    content: "El iPhone llegó en perfectas condiciones. Parece totalmente nuevo. ¡Recomendadísimo!",
+    createdAt: "2026-09-06T21:03:52.570Z",
+    status: "published"
+  },
+  {
+    id: "2",
+    author: "Ana G.",
+    rating: 5,
+    content: "Excelente atención y envío rápido. La batería está al 100% como prometieron.",
+    createdAt: "2026-09-03T21:03:52.570Z",
+    status: "published"
+  },
+  {
+    id: "4",
+    author: "María J.",
+    rating: 5,
+    content: "Tenía mis dudas por ser reacondicionado, pero superó mis expectativas. Volveré a comprar.",
+    createdAt: "2026-08-24T21:03:52.570Z",
+    status: "published"
+  }
+];
+
+const getInitialReviews = (): Review[] => {
+  try {
+    const cached = localStorage.getItem('pixelcero_reviews_cache');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return DEFAULT_REVIEWS;
+};
+
 export default function Reviews() {
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState<Review[]>(getInitialReviews);
   const [showForm, setShowForm] = useState(false);
   const [newReview, setNewReview] = useState({ author: '', rating: 5, content: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const fetchReviews = async () => {
-    const { data } = await supabase.from('store_config').select('store_name').eq('id', 'reviews_data').single();
-    if (data && data.store_name) {
-      try {
-        const parsed = JSON.parse(data.store_name);
-        setReviews(parsed);
-      } catch (e) {
-        console.error(e);
+    try {
+      const { data } = await supabase.from('store_config').select('store_name').eq('id', 'reviews_data').single();
+      if (data && data.store_name) {
+        try {
+          const parsed = JSON.parse(data.store_name);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setReviews(parsed);
+            try { localStorage.setItem('pixelcero_reviews_cache', JSON.stringify(parsed)); } catch (e) {}
+          }
+        } catch (e) {
+          console.error(e);
+        }
       }
+    } catch (err) {
+      console.warn('Reviews fetch notice:', err);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -87,8 +138,6 @@ export default function Reviews() {
   };
 
   const visibleReviews = reviews.filter(r => r.status !== 'hidden');
-
-  if (loading) return null;
 
   return (
     <section className="py-24 bg-white" id="reviews">

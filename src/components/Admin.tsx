@@ -13,25 +13,60 @@ async function hashPassword(password: string) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-const processImageFile = async (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
+const compressImageToWebp = async (file: File, maxDimension = 1200): Promise<string> => {
   try {
     const options = {
-      maxSizeMB: 2, // Higher limit
-      maxWidthOrHeight: Math.max(maxWidth, maxHeight),
+      maxSizeMB: 0.25,
+      maxWidthOrHeight: maxDimension,
       useWebWorker: true,
-      preserveExif: true,
-      initialQuality: 0.98 // Preserve high quality
+      fileType: 'image/webp',
+      initialQuality: 0.82
     };
     const compressedFile = await imageCompression(file, options);
     return await imageCompression.getDataUrlFromFile(compressedFile);
-  } catch (error) {
-    console.error('Error compressing image', error);
+  } catch (err) {
+    console.warn('Canvas fallback compression:', err);
     return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(reader.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          let dataUrl = canvas.toDataURL('image/webp', 0.82);
+          if (!dataUrl.startsWith('data:image/webp')) {
+            dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          }
+          resolve(dataUrl);
+        };
+        img.onerror = () => resolve(reader.result as string);
+        img.src = reader.result as string;
+      };
+      reader.onerror = () => resolve('');
       reader.readAsDataURL(file);
     });
   }
+};
+
+const processImageFile = async (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
+  return compressImageToWebp(file, Math.min(Math.max(maxWidth, maxHeight), 1200));
 };
 
 export default function Admin({
@@ -54,6 +89,9 @@ export default function Admin({
   const [editing, setEditing] = useState<Product | null>(null);
   const [editingImages, setEditingImages] = useState<string[]>([]);
   const [isNew, setIsNew] = useState(false);
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [saveProductError, setSaveProductError] = useState<string | null>(null);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'inventory' | 'config' | 'users' | 'reviews'>('inventory');
   const [reviews, setReviews] = useState<any[]>([]);
@@ -327,49 +365,85 @@ export default function Admin({
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const product: Product = {
-      id: editing?.id || Date.now().toString(),
-      model: formData.get('model') as string,
-      storage: formData.get('storage') as string,
-      condition: formData.get('condition') as string,
-      battery: formData.get('battery') as string,
-      price: Number(formData.get('price')),
-      status: (formData.get('status') as 'Disponible' | 'Vendido') || 'Disponible',
-      images: editingImages.length > 0 ? editingImages : [formData.get('imageUrl') as string].filter(Boolean),
-    };
+    setSaveProductError(null);
+    setSavingProduct(true);
 
-    if (isNew) {
-      setProducts([...products, product]);
-    } else {
-      setProducts(products.map(p => p.id === product.id ? product : p));
-    }
-    
-    // Write to Firestore
-    import('../supabase').then(async ({ supabase }) => {
+    try {
+      const formData = new FormData(e.currentTarget);
+      
+      let finalImages = editingImages;
+      if (finalImages.length === 0 && editing?.images && editing.images.length > 0) {
+        finalImages = editing.images;
+      }
+      if (finalImages.length === 0) {
+        const urlFallback = formData.get('imageUrl') as string;
+        if (urlFallback && urlFallback.trim()) {
+          finalImages = [urlFallback.trim()];
+        }
+      }
+
+      const product: Product = {
+        id: editing?.id || Date.now().toString(),
+        model: (formData.get('model') as string)?.trim() || 'iPhone',
+        storage: (formData.get('storage') as string)?.trim() || '128GB',
+        condition: (formData.get('condition') as string)?.trim() || 'Excelente',
+        battery: (formData.get('battery') as string)?.trim() || '100%',
+        price: Number(formData.get('price')) || 0,
+        status: (formData.get('status') as 'Disponible' | 'Vendido') || 'Disponible',
+        images: finalImages,
+      };
+
       const { error } = await supabase.from('products').upsert(product);
-      if (error) console.error(error);
-    });
+      if (error) {
+        console.error('Error saving product:', error);
+        setSaveProductError('Error al guardar en la base de datos: ' + error.message);
+        setSavingProduct(false);
+        return;
+      }
 
-    setEditing(null);
-    setIsNew(false);
+      const updatedProducts = isNew 
+        ? [...products, product] 
+        : products.map(p => p.id === product.id ? product : p);
+
+      setProducts(updatedProducts);
+      try {
+        localStorage.setItem('pixelcero_products_cache', JSON.stringify(updatedProducts));
+      } catch (cacheErr) {
+        console.warn('Cache write notice:', cacheErr);
+      }
+
+      setEditing(null);
+      setIsNew(false);
+      setEditingImages([]);
+    } catch (err: any) {
+      console.error('Error in handleSave:', err);
+      setSaveProductError('Ocurrió un error inesperado al guardar el artículo.');
+    } finally {
+      setSavingProduct(false);
+    }
   };
 
   const handleDelete = (id: string) => {
     setDeleteConfirm(id);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteConfirm) {
-      setProducts(products.filter(p => p.id !== deleteConfirm));
-      
-      // Delete from Firestore
       const idToDelete = deleteConfirm;
-      import('../supabase').then(async ({ supabase }) => {
+      try {
         const { error } = await supabase.from('products').delete().eq('id', idToDelete);
-        if (error) console.error(error);
-      });
-      
+        if (error) {
+          alert('Error al eliminar en la base de datos: ' + error.message);
+          return;
+        }
+        const updatedProducts = products.filter(p => p.id !== idToDelete);
+        setProducts(updatedProducts);
+        try {
+          localStorage.setItem('pixelcero_products_cache', JSON.stringify(updatedProducts));
+        } catch (e) {}
+      } catch (err) {
+        console.error('Delete error:', err);
+      }
       setDeleteConfirm(null);
     }
   };
@@ -474,7 +548,7 @@ export default function Admin({
           <>
             <div className="flex flex-wrap gap-4 mb-6 justify-end">
               <button
-                onClick={() => { setEditing({} as Product); setEditingImages([]); setIsNew(true); }}
+                onClick={() => { setEditing({} as Product); setEditingImages([]); setSaveProductError(null); setIsNew(true); }}
                 className="flex items-center gap-2 px-5 py-2.5 bg-apple-blue text-white rounded-full hover:bg-apple-blue-hover transition-colors font-medium shadow-sm"
               >
                 <Plus size={18} />
@@ -523,7 +597,7 @@ export default function Admin({
                     </td>
                     <td className="px-6 py-4 flex justify-end gap-2 items-center h-[81px]">
                       <button
-                        onClick={() => { setEditing(p); setEditingImages(p.images || [(p as any).imageUrl]); setIsNew(false); }}
+                        onClick={() => { setEditing(p); setEditingImages(Array.isArray(p.images) ? [...p.images] : ((p as any).imageUrl ? [(p as any).imageUrl] : [])); setSaveProductError(null); setIsNew(false); }}
                         className="p-2.5 text-apple-gray hover:text-apple-blue hover:bg-blue-50 rounded-full transition-colors"
                         title="Editar"
                       >
@@ -611,41 +685,39 @@ export default function Admin({
                   )}
 
                   <div className="flex flex-col gap-3">
-                    <label className="w-full p-4 bg-apple-bg hover:bg-gray-200 rounded-2xl border-2 border-dashed border-gray-300 cursor-pointer transition-all flex flex-col items-center justify-center text-apple-gray text-sm">
-                      <span className="font-medium mb-1">Subir fotos desde tu dispositivo</span>
-                      <span>Formatos soportados: JPG, PNG, WEBP</span>
+                    <label className={`w-full p-4 bg-apple-bg hover:bg-gray-200 rounded-2xl border-2 border-dashed border-gray-300 cursor-pointer transition-all flex flex-col items-center justify-center text-apple-gray text-sm ${uploadingImages ? 'opacity-60 pointer-events-none' : ''}`}>
+                      {uploadingImages ? (
+                        <div className="flex items-center gap-2 text-apple-blue font-medium py-2">
+                          <div className="w-4 h-4 border-2 border-apple-blue border-t-transparent rounded-full animate-spin" />
+                          <span>Optimizando fotos para carga rápida...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="font-medium mb-1 text-apple-text">Subir fotos desde tu dispositivo</span>
+                          <span className="text-xs">Formatos soportados: JPG, PNG, WEBP (se optimizan automáticamente)</span>
+                        </>
+                      )}
                       <input 
                         type="file" 
                         multiple 
                         accept="image/*"
                         className="hidden"
+                        disabled={uploadingImages}
                         onChange={async (e) => {
-                          if (!e.target.files) return;
+                          if (!e.target.files || e.target.files.length === 0) return;
+                          setUploadingImages(true);
                           const files = Array.from(e.target.files) as File[];
                           try {
-                            const newImages = await Promise.all(files.map(async (file) => {
-                              const options = {
-                                maxSizeMB: 2, // Allow larger files to prevent compression noise
-                                maxWidthOrHeight: 1920,
-                                useWebWorker: true,
-                                preserveExif: true,
-                                initialQuality: 0.98 // High quality to preserve Lightroom edits (denoise)
-                              };
-                              const compressedFile = await imageCompression(file, options);
-                              return await imageCompression.getDataUrlFromFile(compressedFile);
-                            }));
-                            setEditingImages(prev => [...prev, ...newImages]);
+                            const newImages = await Promise.all(
+                              files.map(file => compressImageToWebp(file, 1200))
+                            );
+                            const validImages = newImages.filter(Boolean);
+                            setEditingImages(prev => [...prev, ...validImages]);
                           } catch (error) {
                             console.error('Error compressing image', error);
-                            // Fallback if compression fails
-                            const fallbackImages = await Promise.all(files.map(file => {
-                              return new Promise<string>((resolve) => {
-                                const reader = new FileReader();
-                                reader.onload = (e) => resolve(e.target?.result as string);
-                                reader.readAsDataURL(file);
-                              });
-                            }));
-                            setEditingImages(prev => [...prev, ...fallbackImages]);
+                          } finally {
+                            setUploadingImages(false);
+                            e.target.value = '';
                           }
                         }}
                       />
@@ -674,8 +746,24 @@ export default function Admin({
                 </div>
                 
                 <div className="pt-4">
-                  <button type="submit" className="w-full py-4 bg-apple-text text-white rounded-full font-medium hover:bg-black transition-colors">
-                    {isNew ? 'Crear Artículo' : 'Guardar Cambios'}
+                  {saveProductError && (
+                    <div className="p-3.5 mb-3 bg-red-50 text-red-600 rounded-2xl text-sm font-medium border border-red-200">
+                      {saveProductError}
+                    </div>
+                  )}
+                  <button 
+                    type="submit" 
+                    disabled={savingProduct || uploadingImages}
+                    className={`w-full py-4 bg-apple-text text-white rounded-full font-medium hover:bg-black transition-colors flex items-center justify-center gap-2 shadow-sm ${
+                      savingProduct || uploadingImages ? 'opacity-60 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {savingProduct ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Guardando en la base de datos...</span>
+                      </>
+                    ) : isNew ? 'Crear Artículo' : 'Guardar Cambios'}
                   </button>
                 </div>
               </form>

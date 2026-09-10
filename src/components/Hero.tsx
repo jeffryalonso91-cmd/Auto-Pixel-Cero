@@ -17,13 +17,16 @@ export default function Hero() {
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="relative w-full max-w-md md:max-w-none aspect-[4/5] md:aspect-square rounded-3xl overflow-hidden bg-transparent">
-          {(config as any).heroImageUrl && (
-            <img 
-              src={(config as any).heroImageUrl} 
-              alt="iPhones" 
-              className="w-full h-full object-contain"
-            />
-          )}
+          <img 
+            src={(config as any).heroImageUrl || "https://images.unsplash.com/photo-1603898037225-83606be13426?auto=format&fit=crop&q=80&w=1200"} 
+            alt="iPhones" 
+            loading="eager"
+            decoding="async"
+            onError={(e) => {
+              e.currentTarget.src = "https://images.unsplash.com/photo-1603898037225-83606be13426?auto=format&fit=crop&q=80&w=1200";
+            }}
+            className="w-full h-full object-contain"
+          />
         </div>
       </motion.div>
 
