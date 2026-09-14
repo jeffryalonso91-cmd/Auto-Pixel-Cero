@@ -10,6 +10,9 @@ import { supabase } from './supabase';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import Catalog from './components/Catalog';
+import SpecialServices from './components/SpecialServices';
+import TerminosApartado from './components/TerminosApartado';
+import TerminosImportacion from './components/TerminosImportacion';
 import Trust from './components/Trust';
 import Footer from './components/Footer';
 const Admin = lazy(() => import('./components/Admin'));
@@ -18,6 +21,23 @@ import PopupBanner from './components/PopupBanner';
 import { PRODUCTS, Product, CONFIG } from './data';
 
 export const ConfigContext = createContext(CONFIG);
+
+type Route = 'home' | 'admin' | 'terminos-apartado' | 'terminos-importacion';
+
+const getInitialRoute = (): Route => {
+  if (typeof window === 'undefined') return 'home';
+  const hash = window.location.hash;
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+
+  if (hash === '#admin') return 'admin';
+  if (path === '/terminos-apartado' || hash === '#/terminos-apartado' || hash === '#terminos-apartado') {
+    return 'terminos-apartado';
+  }
+  if (path === '/terminos-importacion' || hash === '#/terminos-importacion' || hash === '#terminos-importacion') {
+    return 'terminos-importacion';
+  }
+  return 'home';
+};
 
 const getInitialProducts = (): Product[] => {
   try {
@@ -44,7 +64,29 @@ const getInitialConfig = () => {
 export default function App() {
   const [products, setProducts] = useState<Product[]>(getInitialProducts);
   const [storeConfig, setStoreConfig] = useState(getInitialConfig);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [currentRoute, setCurrentRoute] = useState<Route>(getInitialRoute);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentRoute(getInitialRoute());
+    };
+    window.addEventListener('hashchange', handleLocationChange);
+    window.addEventListener('popstate', handleLocationChange);
+    return () => {
+      window.removeEventListener('hashchange', handleLocationChange);
+      window.removeEventListener('popstate', handleLocationChange);
+    };
+  }, []);
+
+  const navigateTo = (routePath: string) => {
+    if (routePath.startsWith('#')) {
+      window.location.hash = routePath;
+    } else {
+      window.history.pushState({}, '', routePath);
+      setCurrentRoute(getInitialRoute());
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   useEffect(() => {
     let productsSubscription: any;
@@ -205,30 +247,44 @@ export default function App() {
     }
   }, [storeConfig.logoUrl, storeConfig.storeName]);
 
-  useEffect(() => {
-    const checkHash = () => setIsAdmin(window.location.hash === '#admin');
-    checkHash();
-    window.addEventListener('hashchange', checkHash);
-    return () => window.removeEventListener('hashchange', checkHash);
-  }, []);
+  if (currentRoute === 'admin') {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<div className="min-h-screen bg-apple-bg flex items-center justify-center font-sans text-apple-gray">Cargando Panel...</div>}>
+          <Admin products={products} setProducts={setProducts} storeConfig={storeConfig} setStoreConfig={setStoreConfig} />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
 
+  if (currentRoute === 'terminos-apartado') {
+    return (
+      <ConfigContext.Provider value={storeConfig}>
+        <TerminosApartado onBack={() => navigateTo('/')} />
+      </ConfigContext.Provider>
+    );
+  }
 
-
-  if (isAdmin) {
-    return <ErrorBoundary><Suspense fallback={<div className="min-h-screen bg-apple-bg flex items-center justify-center font-sans text-apple-gray">Cargando Panel...</div>}><Admin products={products} setProducts={setProducts} storeConfig={storeConfig} setStoreConfig={setStoreConfig} /></Suspense></ErrorBoundary>;
+  if (currentRoute === 'terminos-importacion') {
+    return (
+      <ConfigContext.Provider value={storeConfig}>
+        <TerminosImportacion onBack={() => navigateTo('/')} />
+      </ConfigContext.Provider>
+    );
   }
 
   return (
     <ConfigContext.Provider value={storeConfig}>
       <div className="min-h-screen bg-apple-bg selection:bg-apple-blue selection:text-white">
-        <Header />
+        <Header onNavigate={navigateTo} />
         <main>
-          <Hero />
+          <Hero onNavigate={navigateTo} />
           <Catalog products={products} />
+          <SpecialServices onNavigate={navigateTo} />
           <Reviews />
           <Trust />
         </main>
-        <Footer />
+        <Footer onNavigate={navigateTo} />
         <PopupBanner />
       </div>
     </ConfigContext.Provider>

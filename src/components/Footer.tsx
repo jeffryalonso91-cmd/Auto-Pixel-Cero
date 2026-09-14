@@ -1,10 +1,25 @@
-import { useContext } from 'react';
+import React, { useContext } from 'react';
 import { ConfigContext } from '../App';
 import SocialLinks from './SocialIcons';
 
-export default function Footer() {
+interface FooterProps {
+  onNavigate?: (route: string) => void;
+}
+
+export default function Footer({ onNavigate }: FooterProps) {
   const config = useContext(ConfigContext);
   const currentYear = new Date().getFullYear();
+
+  const handleLinkClick = (e: React.MouseEvent, route: string) => {
+    e.preventDefault();
+    if (onNavigate) {
+      onNavigate(route);
+    } else {
+      window.history.pushState({}, '', route);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   return (
     <footer id="contact" className="bg-apple-bg pt-20 pb-10 px-6 border-t border-gray-200">
@@ -21,7 +36,31 @@ export default function Footer() {
           </div>
         </div>
         
-        <div className="flex flex-col md:flex-row gap-12 md:gap-24">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-10 sm:gap-14 md:gap-16">
+          <div>
+            <h3 className="font-semibold tracking-tight mb-4">Términos y Políticas</h3>
+            <ul className="space-y-3 text-sm text-apple-gray">
+              <li>
+                <a 
+                  href="/terminos-apartado" 
+                  onClick={(e) => handleLinkClick(e, '/terminos-apartado')}
+                  className="hover:text-apple-text transition-colors"
+                >
+                  Términos de Apartado
+                </a>
+              </li>
+              <li>
+                <a 
+                  href="/terminos-importacion" 
+                  onClick={(e) => handleLinkClick(e, '/terminos-importacion')}
+                  className="hover:text-apple-text transition-colors"
+                >
+                  Términos de Importación
+                </a>
+              </li>
+            </ul>
+          </div>
+
           <div>
             <h3 className="font-semibold tracking-tight mb-4">Contacto</h3>
             <ul className="space-y-3 text-sm text-apple-gray">
@@ -30,6 +69,7 @@ export default function Footer() {
               <li><a href="#admin" className="hover:text-apple-text transition-colors">Panel Admin</a></li>
             </ul>
           </div>
+
           <div>
             <h3 className="font-semibold tracking-tight mb-4">Horario de Atención</h3>
             <ul className="space-y-3 text-sm text-apple-gray">

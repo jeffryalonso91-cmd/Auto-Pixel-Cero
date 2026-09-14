@@ -561,7 +561,7 @@ export default function Catalog({ products }: { products: Product[] }) {
   };
 
   const filteredProducts = useMemo(() => {
-    return products.filter(p => {
+    const list = products.filter(p => {
       // 1. Status Filter
       if (filter === 'available' && p.status === 'Vendido') return false;
       if (filter === 'sold' && p.status !== 'Vendido') return false;
@@ -575,6 +575,15 @@ export default function Catalog({ products }: { products: Product[] }) {
       
       return true;
     });
+
+    // Siempre mostrar primero los artículos disponibles y después los vendidos
+    return list.sort((a, b) => {
+      const aAvailable = a.status !== 'Vendido';
+      const bAvailable = b.status !== 'Vendido';
+      if (aAvailable && !bAvailable) return -1;
+      if (!aAvailable && bAvailable) return 1;
+      return 0;
+    });
   }, [products, filter, searchQuery]);
 
   return (
@@ -587,7 +596,7 @@ export default function Catalog({ products }: { products: Product[] }) {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         >
-          Catálogo de Productos
+          Disponibles para Entrega Inmediata
         </motion.h2>
         <motion.p
           className="text-lg text-apple-gray"
@@ -596,7 +605,7 @@ export default function Catalog({ products }: { products: Product[] }) {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
         >
-          El inventario se mueve rápido. Envíanos un mensaje para asegurar el tuyo.
+          Equipos listos para entrega inmediata o para apartar con un 25% de adelanto.
         </motion.p>
       </div>
 

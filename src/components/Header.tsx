@@ -1,10 +1,14 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { ConfigContext } from '../App';
 import SocialLinks from './SocialIcons';
 import { Menu, X } from 'lucide-react';
 
-export default function Header() {
+interface HeaderProps {
+  onNavigate?: (route: string) => void;
+}
+
+export default function Header({ onNavigate }: HeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const config = useContext(ConfigContext);
@@ -17,6 +21,26 @@ export default function Header() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const handleHomeClick = (e: React.MouseEvent) => {
+    if (window.location.pathname !== '/' || window.location.hash) {
+      e.preventDefault();
+      if (onNavigate) {
+        onNavigate('/');
+      } else {
+        window.history.pushState({}, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  };
+
+  const handleSectionClick = (e: React.MouseEvent, hash: string) => {
+    if (window.location.pathname !== '/' && onNavigate) {
+      e.preventDefault();
+      onNavigate('/' + hash);
+    }
+  };
+
   return (
     <motion.header
       className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${
@@ -27,7 +51,7 @@ export default function Header() {
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-        <a href="#" className="flex items-center gap-2 sm:gap-3 font-semibold text-base sm:text-lg tracking-tight text-apple-text shrink min-w-0">
+        <a href="/" onClick={handleHomeClick} className="flex items-center gap-2 sm:gap-3 font-semibold text-base sm:text-lg tracking-tight text-apple-text shrink min-w-0">
           {config.logoUrl && (
             <img src={config.logoUrl} alt={`${config.storeName} Logo`} className="h-7 sm:h-8 w-auto object-contain shrink-0" />
           )}
@@ -37,10 +61,11 @@ export default function Header() {
         <div className="flex items-center gap-1.5 sm:gap-6 shrink-0">
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-            <a href="#" className="text-apple-text hover:text-apple-blue transition-colors">Inicio</a>
-            <a href="#catalog" className="text-apple-text hover:text-apple-blue transition-colors">Catálogo</a>
-            <a href="#reviews" className="text-apple-text hover:text-apple-blue transition-colors">Reseñas</a>
-            <a href="#contact" className="text-apple-text hover:text-apple-blue transition-colors">Contacto</a>
+            <a href="/" onClick={handleHomeClick} className="text-apple-text hover:text-apple-blue transition-colors">Inicio</a>
+            <a href="/#catalog" onClick={(e) => handleSectionClick(e, '#catalog')} className="text-apple-text hover:text-apple-blue transition-colors">Disponibles</a>
+            <a href="/#servicios" onClick={(e) => handleSectionClick(e, '#servicios')} className="text-apple-text hover:text-apple-blue transition-colors">Apartados y pedido especial</a>
+            <a href="/#reviews" onClick={(e) => handleSectionClick(e, '#reviews')} className="text-apple-text hover:text-apple-blue transition-colors">Reseñas</a>
+            <a href="/#contact" onClick={(e) => handleSectionClick(e, '#contact')} className="text-apple-text hover:text-apple-blue transition-colors">Contacto</a>
           </nav>
           
           <div className="h-4 w-px bg-gray-300/80 hidden md:block" />
@@ -71,29 +96,51 @@ export default function Header() {
           >
             <nav className="flex flex-col gap-1 text-base font-medium text-apple-text">
               <a
-                href="#"
-                onClick={() => setMobileMenuOpen(false)}
+                href="/"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleHomeClick(e);
+                }}
                 className="py-2.5 px-3 rounded-xl hover:bg-black/5 active:bg-black/10 transition-colors"
               >
                 Inicio
               </a>
               <a
-                href="#catalog"
-                onClick={() => setMobileMenuOpen(false)}
+                href="/#catalog"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleSectionClick(e, '#catalog');
+                }}
                 className="py-2.5 px-3 rounded-xl hover:bg-black/5 active:bg-black/10 transition-colors"
               >
-                Catálogo
+                Disponibles
               </a>
               <a
-                href="#reviews"
-                onClick={() => setMobileMenuOpen(false)}
+                href="/#servicios"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleSectionClick(e, '#servicios');
+                }}
+                className="py-2.5 px-3 rounded-xl hover:bg-black/5 active:bg-black/10 transition-colors"
+              >
+                Apartados y pedido especial
+              </a>
+              <a
+                href="/#reviews"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleSectionClick(e, '#reviews');
+                }}
                 className="py-2.5 px-3 rounded-xl hover:bg-black/5 active:bg-black/10 transition-colors"
               >
                 Reseñas
               </a>
               <a
-                href="#contact"
-                onClick={() => setMobileMenuOpen(false)}
+                href="/#contact"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleSectionClick(e, '#contact');
+                }}
                 className="py-2.5 px-3 rounded-xl hover:bg-black/5 active:bg-black/10 transition-colors"
               >
                 Contacto
