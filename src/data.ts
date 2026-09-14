@@ -23,6 +23,7 @@ export type Product = {
   price: number;
   images: string[];
   status?: 'Disponible' | 'Vendido';
+  comments?: string;
 };
 
 export const PRODUCTS: Product[] = [

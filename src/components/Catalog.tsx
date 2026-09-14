@@ -2,7 +2,7 @@ import { motion, AnimatePresence, useInView } from 'motion/react';
 import { useContext } from 'react';
 import { ConfigContext } from '../App';
 import type { Product } from '../data';
-import { MessageCircle, X, ChevronLeft, ChevronRight, Search, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { MessageCircle, X, ChevronLeft, ChevronRight, Search, ZoomIn, ZoomOut, RotateCcw, ChevronDown } from 'lucide-react';
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 
 function Lightbox({ images, onClose }: { images: string[], onClose: () => void }) {
@@ -254,12 +254,12 @@ function Lightbox({ images, onClose }: { images: string[], onClose: () => void }
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      onClick={(e) => {
-        if (scale > 1) {
-          resetZoom();
-        } else {
-          onClose();
+      onClick={() => {
+        if (hasMoved.current) {
+          hasMoved.current = false;
+          return;
         }
+        onClose();
       }}
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
@@ -361,14 +361,19 @@ function Lightbox({ images, onClose }: { images: string[], onClose: () => void }
       <div 
         ref={imageContainerRef}
         className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden p-2 sm:p-6" 
-        onClick={(e) => e.stopPropagation()}
+        onClick={() => {
+          if (hasMoved.current) {
+            hasMoved.current = false;
+            return;
+          }
+          onClose();
+        }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onDoubleClick={handleToggleZoom}
       >
         <motion.img 
           key={currentIndex}
@@ -379,6 +384,10 @@ function Lightbox({ images, onClose }: { images: string[], onClose: () => void }
           initial={{ opacity: 0.6 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.2 }}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+          onDoubleClick={handleToggleZoom}
           style={{
             transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
             transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -439,9 +448,11 @@ function Lightbox({ images, onClose }: { images: string[], onClose: () => void }
 function ProductCard({ product, index, config, handleWhatsApp, setActiveGallery }: { product: Product, index: number, config: any, handleWhatsApp: any, setActiveGallery: any, key?: React.Key }) {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { margin: "-30% 0px -30% 0px" });
+  const [showComments, setShowComments] = useState(false);
 
   const images = product.images && product.images.length > 0 ? product.images : [(product as any).imageUrl];
   const displayImages = images.slice(0, 3);
+  const hasComments = Boolean(product.comments && product.comments.trim().length > 0);
 
   const handleCardClick = () => {
     if (product.status !== 'Vendido') {
@@ -453,7 +464,7 @@ function ProductCard({ product, index, config, handleWhatsApp, setActiveGallery 
     <motion.div 
       ref={ref}
       key={product.id}
-      className={`bg-apple-card rounded-[24px] overflow-hidden flex flex-col group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 ${
+      className={`bg-apple-card rounded-[24px] overflow-hidden flex flex-col group hover:shadow-xl hover:-translate-y-1 transition-all duration-300 self-start w-full ${
         product.status === 'Vendido' ? 'cursor-default' : 'cursor-pointer active:scale-[0.99]'
       }`}
       initial={{ opacity: 0, y: 20 }}
@@ -523,9 +534,50 @@ function ProductCard({ product, index, config, handleWhatsApp, setActiveGallery 
       
       <div className="p-6 sm:p-8 flex-grow flex flex-col">
         <h3 className="text-2xl font-semibold tracking-tight mb-2 group-hover:text-apple-blue transition-colors">{product.model}</h3>
-        <p className="text-sm text-apple-gray mb-6 tracking-tight">
-          {product.storage} &middot; Condición {product.condition} &middot; Batería {product.battery}
-        </p>
+        
+        {/* Especificaciones principales */}
+        {hasComments ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowComments(prev => !prev);
+            }}
+            className="group/specs text-left mb-6 focus:outline-none"
+            title="Haz clic para ver detalles y observaciones"
+          >
+            <div className="inline-flex items-center gap-1.5 flex-wrap text-sm text-apple-gray group-hover/specs:text-apple-blue transition-colors">
+              <span className="font-normal">{product.storage} &middot; Condición {product.condition} &middot; Batería {product.battery}</span>
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-apple-blue bg-blue-50 px-2 py-0.5 rounded-full">
+                <span>{showComments ? 'Ocultar detalles' : 'Ver detalles'}</span>
+                <ChevronDown size={13} className={`transition-transform duration-200 ${showComments ? 'rotate-180' : ''}`} />
+              </span>
+            </div>
+          </button>
+        ) : (
+          <p className="text-sm text-apple-gray mb-6 tracking-tight">
+            {product.storage} &middot; Condición {product.condition} &middot; Batería {product.battery}
+          </p>
+        )}
+
+        {/* Despliegue condicional del campo de comentarios (solo si tiene contenido y se dio clic) */}
+        <AnimatePresence>
+          {hasComments && showComments && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden mb-6 -mt-3"
+            >
+              <div className="p-3.5 bg-gray-50/90 rounded-2xl border border-gray-100/80 text-xs text-apple-text leading-relaxed">
+                <p className="whitespace-pre-line text-apple-text/90 font-normal">
+                  {product.comments}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         <div className="mt-auto flex items-center justify-between pt-2">
           <span className="text-xl font-medium tracking-tight">
@@ -650,7 +702,7 @@ export default function Catalog({ products }: { products: Product[] }) {
           <p className="text-xl text-apple-gray">No hay artículos en esta categoría.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
           {filteredProducts.map((product, index) => (
             <ProductCard 
               key={product.id} 

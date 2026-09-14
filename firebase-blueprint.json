@@ -11,7 +11,8 @@
         { "name": "battery", "type": "string" },
         { "name": "price", "type": "number" },
         { "name": "status", "type": "string" },
-        { "name": "images", "type": "array" }
+        { "name": "images", "type": "array" },
+        { "name": "comments", "type": "string" }
       ],
       "rules": "allow read: if true; allow write: if true;"
     },

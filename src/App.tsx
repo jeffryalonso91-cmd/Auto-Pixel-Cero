@@ -4,7 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, createContext, lazy, Suspense } from 'react';
+import { useState, useEffect, createContext, useRef, lazy, Suspense } from 'react';
 import localforage from 'localforage';
 import { supabase } from './supabase';
 import Header from './components/Header';
@@ -18,6 +18,7 @@ import Footer from './components/Footer';
 const Admin = lazy(() => import('./components/Admin'));
 import Reviews from './components/Reviews';
 import PopupBanner from './components/PopupBanner';
+import ScrollToTop from './components/ScrollToTop';
 import { PRODUCTS, Product, CONFIG } from './data';
 
 export const ConfigContext = createContext(CONFIG);
@@ -41,10 +42,20 @@ const getInitialRoute = (): Route => {
 
 const getInitialProducts = (): Product[] => {
   try {
+    let commentsMap: Record<string, string> = {};
+    const cachedComments = localStorage.getItem('pixelcero_comments_cache');
+    if (cachedComments) {
+      try { commentsMap = JSON.parse(cachedComments); } catch (e) {}
+    }
     const cached = localStorage.getItem('pixelcero_products_cache');
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((p: Product) => ({
+          ...p,
+          comments: p.comments !== undefined && p.comments !== '' ? p.comments : (commentsMap[p.id] || '')
+        }));
+      }
     }
   } catch (e) {}
   return PRODUCTS;
@@ -65,6 +76,24 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>(getInitialProducts);
   const [storeConfig, setStoreConfig] = useState(getInitialConfig);
   const [currentRoute, setCurrentRoute] = useState<Route>(getInitialRoute);
+  const commentsMapRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('pixelcero_comments_cache');
+      if (cached) {
+        commentsMapRef.current = JSON.parse(cached);
+      }
+    } catch (e) {}
+  }, []);
+
+  const mergeProductsWithComments = (items: Product[], customMap?: Record<string, string>): Product[] => {
+    const map = customMap || commentsMapRef.current || {};
+    return items.map(p => ({
+      ...p,
+      comments: p.comments !== undefined && p.comments !== '' ? p.comments : (map[p.id] || '')
+    }));
+  };
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -108,9 +137,10 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
          supabase.from('products').select('*').then(({ data }) => {
            if (data && data.length > 0 && isMounted) {
-             setProducts(data as Product[]);
-             try { localStorage.setItem('pixelcero_products_cache', JSON.stringify(data)); } catch (e) {}
-             localforage.setItem('pixelcero_products_cache', data).catch(() => {});
+             const merged = mergeProductsWithComments(data as Product[]);
+             setProducts(merged);
+             try { localStorage.setItem('pixelcero_products_cache', JSON.stringify(merged)); } catch (e) {}
+             localforage.setItem('pixelcero_products_cache', merged).catch(() => {});
            }
          });
       })
@@ -119,12 +149,22 @@ export default function App() {
     configSubscription = supabase
       .channel('config_changes_' + Math.random().toString(36).substring(7))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_config' }, () => {
-         supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon', 'socials']).then(({ data }) => {
+         supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon', 'socials', 'product_comments']).then(({ data }) => {
            if (data && isMounted) {
              const storeData = data.find((d: any) => d.id === 'store') || {};
              const heroData = data.find((d: any) => d.id === 'hero') || {};
              const faviconData = data.find((d: any) => d.id === 'favicon') || {};
              const socialsData = data.find((d: any) => d.id === 'socials') || {};
+             const commentsData = data.find((d: any) => d.id === 'product_comments');
+
+             if (commentsData?.store_name) {
+               try {
+                 const commentsMap = JSON.parse(commentsData.store_name);
+                 commentsMapRef.current = commentsMap;
+                 try { localStorage.setItem('pixelcero_comments_cache', JSON.stringify(commentsMap)); } catch (e) {}
+                 setProducts(prev => mergeProductsWithComments(prev, commentsMap));
+               } catch (e) {}
+             }
 
              let parsedSocials: any = {};
              if (socialsData.store_name) {
@@ -161,15 +201,16 @@ export default function App() {
       if (error) {
         console.warn('Network notice fetching products:', error);
       } else if (data && data.length > 0 && isMounted) {
-        setProducts(data as Product[]);
+        const merged = mergeProductsWithComments(data as Product[]);
+        setProducts(merged);
         try {
-          localStorage.setItem('pixelcero_products_cache', JSON.stringify(data));
+          localStorage.setItem('pixelcero_products_cache', JSON.stringify(merged));
         } catch (e) {}
-        localforage.setItem('pixelcero_products_cache', data).catch(() => {});
+        localforage.setItem('pixelcero_products_cache', merged).catch(() => {});
       }
     });
 
-    supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon', 'socials']).then(({ data, error }) => {
+    supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon', 'socials', 'product_comments']).then(({ data, error }) => {
       if (error) {
         console.warn('Network notice fetching store_config:', error);
       } else if (data && isMounted) {
@@ -177,6 +218,16 @@ export default function App() {
          const heroData = data.find((d: any) => d.id === 'hero') || {};
          const faviconData = data.find((d: any) => d.id === 'favicon') || {};
          const socialsData = data.find((d: any) => d.id === 'socials') || {};
+         const commentsData = data.find((d: any) => d.id === 'product_comments');
+
+         if (commentsData?.store_name) {
+           try {
+             const commentsMap = JSON.parse(commentsData.store_name);
+             commentsMapRef.current = commentsMap;
+             try { localStorage.setItem('pixelcero_comments_cache', JSON.stringify(commentsMap)); } catch (e) {}
+             setProducts(prev => mergeProductsWithComments(prev, commentsMap));
+           } catch (e) {}
+         }
 
          let parsedSocials: any = {};
          if (socialsData.store_name) {
@@ -261,6 +312,7 @@ export default function App() {
     return (
       <ConfigContext.Provider value={storeConfig}>
         <TerminosApartado onBack={() => navigateTo('/')} />
+        <ScrollToTop />
       </ConfigContext.Provider>
     );
   }
@@ -269,6 +321,7 @@ export default function App() {
     return (
       <ConfigContext.Provider value={storeConfig}>
         <TerminosImportacion onBack={() => navigateTo('/')} />
+        <ScrollToTop />
       </ConfigContext.Provider>
     );
   }
@@ -286,6 +339,7 @@ export default function App() {
         </main>
         <Footer onNavigate={navigateTo} />
         <PopupBanner />
+        <ScrollToTop />
       </div>
     </ConfigContext.Provider>
   );

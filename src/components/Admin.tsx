@@ -497,10 +497,46 @@ export default function Admin({
         battery: (formData.get('battery') as string)?.trim() || '100%',
         price: Number(formData.get('price')) || 0,
         status: (formData.get('status') as 'Disponible' | 'Vendido') || 'Disponible',
+        comments: (formData.get('comments') as string)?.trim() || '',
         images: sanitizedImages,
       };
 
-      const { error } = await supabase.from('products').upsert(product);
+      let { error } = await supabase.from('products').upsert(product);
+      
+      // If the Supabase 'products' table doesn't have the 'comments' column in its schema cache:
+      if (error && (error.message?.toLowerCase().includes('comments') || error.code === 'PGRST204')) {
+        console.warn("Supabase 'products' table lacks 'comments' column. Stripping column and saving to store_config fallback.");
+        const { comments, ...productWithoutComments } = product;
+        const retry = await supabase.from('products').upsert(productWithoutComments);
+        error = retry.error;
+      }
+
+      // Always persist comments in store_config under 'product_comments' so they are durably stored in the cloud
+      if (!error) {
+        try {
+          const { data: configRows } = await supabase
+            .from('store_config')
+            .select('store_name')
+            .eq('id', 'product_comments')
+            .maybeSingle();
+
+          let commentsMap: Record<string, string> = {};
+          if (configRows?.store_name) {
+            try {
+              commentsMap = JSON.parse(configRows.store_name);
+            } catch (e) {}
+          }
+          commentsMap[product.id] = product.comments || '';
+          
+          await supabase.from('store_config').upsert({
+            id: 'product_comments',
+            store_name: JSON.stringify(commentsMap),
+          });
+        } catch (commentSyncErr) {
+          console.warn('Notice saving comments to store_config fallback:', commentSyncErr);
+        }
+      }
+
       if (error) {
         console.error('Error saving product:', error);
         setSaveProductError('Error al guardar en la base de datos: ' + error.message);
@@ -548,6 +584,25 @@ export default function Admin({
         setProducts(updatedProducts);
         try {
           localStorage.setItem('pixelcero_products_cache', JSON.stringify(updatedProducts));
+        } catch (e) {}
+
+        // Clean up deleted product comments from store_config fallback
+        try {
+          const { data: configRows } = await supabase
+            .from('store_config')
+            .select('store_name')
+            .eq('id', 'product_comments')
+            .maybeSingle();
+          if (configRows?.store_name) {
+            const commentsMap = JSON.parse(configRows.store_name);
+            if (commentsMap[idToDelete]) {
+              delete commentsMap[idToDelete];
+              await supabase.from('store_config').upsert({
+                id: 'product_comments',
+                store_name: JSON.stringify(commentsMap),
+              });
+            }
+          }
         } catch (e) {}
       } catch (err) {
         console.error('Delete error:', err);
@@ -771,6 +826,19 @@ export default function Admin({
                     <option value="Disponible">Disponible</option>
                     <option value="Vendido">Vendido</option>
                   </select>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2 ml-1">
+                    <label className="block text-sm font-medium text-apple-text">Comentarios / Observaciones (Opcional)</label>
+                    <span className="text-xs text-apple-gray">Se desplegará al hacer clic en las especificaciones</span>
+                  </div>
+                  <textarea 
+                    name="comments" 
+                    defaultValue={editing.comments || ''} 
+                    rows={3}
+                    className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all placeholder:text-gray-400 text-sm resize-none" 
+                    placeholder="Ej: Incluye cable original tipo C, sin detalles en pantalla ni marcos, batería 100% original nunca cambiada..." 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Fotos del Artículo</label>
