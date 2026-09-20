@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import React, { useContext } from 'react';
 import { ConfigContext } from '../App';
-import { ShieldCheck, Truck, Unlock, ArrowRight, Plane } from 'lucide-react';
+import { ShieldCheck, Truck, Unlock, ArrowRight, BookmarkCheck } from 'lucide-react';
 import SocialLinks from './SocialIcons';
 
 interface HeroProps {
@@ -21,6 +21,17 @@ export default function Hero({ onNavigate }: HeroProps) {
     }
   };
 
+  const handleNavigateSpecialOrder = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (onNavigate) {
+      onNavigate('/pedido-especial');
+    } else {
+      window.history.pushState({}, '', '/pedido-especial');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   return (
     <section className="pt-28 md:pt-32 pb-16 md:pb-24 px-4 sm:px-6 max-w-7xl mx-auto flex flex-col items-center">
       {/* Interactive Top Spotlight Banner for Import & Apartados */}
@@ -31,8 +42,8 @@ export default function Hero({ onNavigate }: HeroProps) {
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       >
         <a
-          href="#servicios"
-          onClick={handleServiceScroll}
+          href="/pedido-especial"
+          onClick={handleNavigateSpecialOrder}
           className="group block relative overflow-hidden rounded-2xl sm:rounded-3xl bg-white text-apple-text p-4 sm:p-6 shadow-sm border border-black/5 hover:border-black/15 hover:shadow-md transition-all duration-300 active:scale-[0.99]"
         >
           {/* Subtle warm/cool background tint accents */}
@@ -61,17 +72,17 @@ export default function Hero({ onNavigate }: HeroProps) {
               
               <div className="min-w-0">
                 <h2 className="text-base sm:text-lg md:text-xl font-bold tracking-tight text-apple-text">
-                  ¿Buscás apartar para entrega inmediata o importar un modelo a pedido especial?
+                  ¿Buscás importar un producto a pedido especial?
                 </h2>
                 <p className="text-xs sm:text-sm text-apple-gray mt-0.5 sm:mt-1 leading-relaxed">
-                  Apartá productos de entrega inmediata con un adelanto o pedí cualquier producto Apple exclusivo importado de USA.
+                  Importamos cualquier producto Apple directamente de USA con garantía certificada y saldo contra entrega.
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 self-start md:self-center shrink-0">
               <span className="inline-flex items-center gap-2 bg-apple-text text-white group-hover:bg-black/85 px-4 sm:px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold transition-all shadow-xs">
-                <span>Apartados y pedido especial</span>
+                <span>Pedido especial</span>
                 <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
               </span>
             </div>
@@ -147,8 +158,8 @@ export default function Hero({ onNavigate }: HeroProps) {
               className="bg-white text-apple-text hover:bg-gray-100 border border-black/10 px-6 sm:px-7 py-3.5 sm:py-4 rounded-full font-medium text-base sm:text-lg transition-all inline-flex items-center gap-2 shadow-xs hover:border-black/20"
               whileTap={{ scale: 0.95 }}
             >
-              <Plane size={18} className="text-apple-blue" />
-              <span>Apartados y pedido especial</span>
+              <BookmarkCheck size={18} className="text-emerald-600" />
+              <span>Apartados</span>
             </motion.a>
           </div>
 

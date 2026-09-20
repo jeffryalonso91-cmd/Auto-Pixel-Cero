@@ -13,6 +13,7 @@ import Catalog from './components/Catalog';
 import SpecialServices from './components/SpecialServices';
 import TerminosApartado from './components/TerminosApartado';
 import TerminosImportacion from './components/TerminosImportacion';
+import PedidoEspecial from './components/PedidoEspecial';
 import Trust from './components/Trust';
 import Footer from './components/Footer';
 const Admin = lazy(() => import('./components/Admin'));
@@ -23,7 +24,7 @@ import { PRODUCTS, Product, CONFIG } from './data';
 
 export const ConfigContext = createContext(CONFIG);
 
-type Route = 'home' | 'admin' | 'terminos-apartado' | 'terminos-importacion';
+type Route = 'home' | 'admin' | 'terminos-apartado' | 'terminos-importacion' | 'pedido-especial';
 
 const getInitialRoute = (): Route => {
   if (typeof window === 'undefined') return 'home';
@@ -36,6 +37,9 @@ const getInitialRoute = (): Route => {
   }
   if (path === '/terminos-importacion' || hash === '#/terminos-importacion' || hash === '#terminos-importacion') {
     return 'terminos-importacion';
+  }
+  if (path === '/pedido-especial' || hash === '#/pedido-especial' || hash === '#pedido-especial') {
+    return 'pedido-especial';
   }
   return 'home';
 };
@@ -322,6 +326,14 @@ export default function App() {
       <ConfigContext.Provider value={storeConfig}>
         <TerminosImportacion onBack={() => navigateTo('/')} />
         <ScrollToTop />
+      </ConfigContext.Provider>
+    );
+  }
+
+  if (currentRoute === 'pedido-especial') {
+    return (
+      <ConfigContext.Provider value={storeConfig}>
+        <PedidoEspecial onBack={() => navigateTo('/')} onNavigate={navigateTo} />
       </ConfigContext.Provider>
     );
   }

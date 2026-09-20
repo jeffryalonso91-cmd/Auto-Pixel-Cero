@@ -1,11 +1,11 @@
 export const CONFIG = {
   storeName: "Pixel Cero",
-  whatsappNumber: "+1234567890", // Example format, replace with actual number
-  email: "hola@pixelcero.example.com",
-  instagramUrl: "https://instagram.com/pixelcero",
-  facebookUrl: "https://facebook.com/pixelcero",
-  tiktokUrl: "https://tiktok.com/@pixelcero",
-  businessHours: "Lun - Vie, 9 AM - 6 PM",
+  whatsappNumber: "+506 60485912",
+  email: "info@pixelcerocr.com",
+  instagramUrl: "https://www.instagram.com/pixelcero_cr",
+  facebookUrl: "https://www.facebook.com/share/1MEhurJQRq/?mibextid=wwXIfr",
+  tiktokUrl: "https://www.tiktok.com/@pixel_cero_cr",
+  businessHours: "Lun - Sáb, 9 AM - 7 PM",
   currencySymbol: "$",
   logoUrl: "",
   faviconUrl: "",

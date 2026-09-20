@@ -63,7 +63,7 @@ export default function Header({ onNavigate }: HeaderProps) {
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
             <a href="/" onClick={handleHomeClick} className="text-apple-text hover:text-apple-blue transition-colors">Inicio</a>
             <a href="/#catalog" onClick={(e) => handleSectionClick(e, '#catalog')} className="text-apple-text hover:text-apple-blue transition-colors">Disponibles</a>
-            <a href="/#servicios" onClick={(e) => handleSectionClick(e, '#servicios')} className="text-apple-text hover:text-apple-blue transition-colors">Apartados y pedido especial</a>
+            <a href="/#servicios" onClick={(e) => handleSectionClick(e, '#servicios')} className="text-apple-text hover:text-apple-blue transition-colors">Apartados</a>
             <a href="/#reviews" onClick={(e) => handleSectionClick(e, '#reviews')} className="text-apple-text hover:text-apple-blue transition-colors">Reseñas</a>
             <a href="/#contact" onClick={(e) => handleSectionClick(e, '#contact')} className="text-apple-text hover:text-apple-blue transition-colors">Contacto</a>
           </nav>
@@ -123,7 +123,7 @@ export default function Header({ onNavigate }: HeaderProps) {
                 }}
                 className="py-2.5 px-3 rounded-xl hover:bg-black/5 active:bg-black/10 transition-colors"
               >
-                Apartados y pedido especial
+                Apartados
               </a>
               <a
                 href="/#reviews"
