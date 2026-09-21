@@ -10,10 +10,12 @@ import {
   ShieldCheck, 
   Sparkles, 
   ChevronRight, 
+  ChevronLeft,
   ArrowLeft,
   ChevronDown,
   Search,
-  ArrowUp
+  ArrowUp,
+  CheckCircle2
 } from 'lucide-react';
 import { ConfigContext } from '../App';
 import Header from './Header';
@@ -148,6 +150,20 @@ export default function PedidoEspecial({ onBack, onNavigate }: PedidoEspecialPro
   const [customSearch, setCustomSearch] = useState<string>('');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [showBackToTop, setShowBackToTop] = useState(false);
+
+  const handleNextDevice = () => {
+    const currentIndex = DEVICES_DATA.findIndex(d => d.id === selectedDevice);
+    const nextIndex = (currentIndex + 1) % DEVICES_DATA.length;
+    setSelectedDevice(DEVICES_DATA[nextIndex].id);
+  };
+
+  const handlePrevDevice = () => {
+    const currentIndex = DEVICES_DATA.findIndex(d => d.id === selectedDevice);
+    const prevIndex = (currentIndex - 1 + DEVICES_DATA.length) % DEVICES_DATA.length;
+    setSelectedDevice(DEVICES_DATA[prevIndex].id);
+  };
+
+  const currentDevice = DEVICES_DATA.find(d => d.id === selectedDevice) || DEVICES_DATA[0];
 
   useEffect(() => {
     const handleScroll = () => {
@@ -299,9 +315,7 @@ export default function PedidoEspecial({ onBack, onNavigate }: PedidoEspecialPro
               <span className="text-xs font-semibold uppercase tracking-wider text-apple-gray block mb-1">
                 Haz clic en cualquier producto para cotizar en WhatsApp oficial
               </span>
-              <p className="text-xs sm:text-sm text-apple-gray/80">
-                Línea oficial de Pixel Cero: <strong className="text-apple-text">+506 6048-5912</strong>
-              </p>
+        
             </div>
 
             {/* Desktop & Tablet Constellation */}
@@ -410,7 +424,7 @@ export default function PedidoEspecial({ onBack, onNavigate }: PedidoEspecialPro
                         <div className="flex items-center gap-2">
                           <span className="font-bold"></span>
                           <span className="hidden sm:inline">Pixel Cero</span>
-                          <span className="hidden sm:inline">USA Import</span>
+                          <span className="hidden sm:inline">Importación USA</span>
                         </div>
                         <div className="flex items-center gap-2 text-[8px] text-white/80">
                           <span>Configuración a medida</span>
@@ -527,7 +541,7 @@ export default function PedidoEspecial({ onBack, onNavigate }: PedidoEspecialPro
                           iPad
                         </span>
                         <span className="text-[10px] text-cyan-300 font-medium">
-                          Liquid Retina Display
+                          Pantalla Liquid Retina
                         </span>
                       </div>
 
@@ -566,39 +580,344 @@ export default function PedidoEspecial({ onBack, onNavigate }: PedidoEspecialPro
 
             </div>
 
-            {/* Mobile Responsive List View */}
-            <div className="md:hidden space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {DEVICES_DATA.map((device) => (
-                  <div
-                    key={device.id}
-                    onClick={() => handleDeviceQuote(device)}
-                    className="p-4 rounded-2xl bg-white border border-black/5 shadow-xs flex items-center justify-between gap-3 active:scale-98 transition-all cursor-pointer hover:border-apple-blue"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-xl bg-apple-bg flex items-center justify-center text-apple-blue shrink-0">
-                        {device.id === 'macbook' && <Laptop size={20} />}
-                        {device.id === 'iphone' && <Smartphone size={20} />}
-                        {device.id === 'ipad' && <Tablet size={20} />}
-                        {device.id === 'watch' && <Watch size={20} />}
-                        {device.id === 'airpods' && <Headphones size={20} />}
-                        {device.id === 'homepod' && <Speaker size={20} />}
+            {/* Mobile Responsive Vertical Interactive Pedestal */}
+            <div className="md:hidden space-y-4">
+              {/* Horizontal Scrollable Device Selector Bar */}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none -mx-2 px-2">
+                    {DEVICES_DATA.map((dev) => {
+                      const isSelected = dev.id === selectedDevice;
+                      return (
+                        <button
+                          key={dev.id}
+                          type="button"
+                          onClick={() => setSelectedDevice(dev.id)}
+                          className={`shrink-0 px-3.5 py-2 rounded-2xl text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-apple-blue text-white shadow-xs'
+                              : 'bg-white text-apple-text border border-black/5 hover:border-apple-blue/40'
+                          }`}
+                        >
+                          {dev.id === 'macbook' && <Laptop size={14} />}
+                          {dev.id === 'iphone' && <Smartphone size={14} />}
+                          {dev.id === 'ipad' && <Tablet size={14} />}
+                          {dev.id === 'watch' && <Watch size={14} />}
+                          {dev.id === 'airpods' && <Headphones size={14} />}
+                          {dev.id === 'homepod' && <Speaker size={14} />}
+                          <span>{dev.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* The Vertical Interactive Pedestal Stage Card */}
+                  <div className="bg-white rounded-3xl p-5 sm:p-6 border border-black/5 shadow-sm relative overflow-hidden">
+                    {/* Ambient Spotlight Glow */}
+                    <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-100/50 rounded-full blur-3xl pointer-events-none" />
+
+                    {/* Stage Header: Category Badge + Counter & Navigation Arrows */}
+                    <div className="flex items-center justify-between mb-4 relative z-10">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-full bg-apple-bg text-[11px] font-semibold text-apple-blue border border-black/5">
+                          {currentDevice.category}
+                        </span>
+                        <span className="text-xs text-apple-gray">
+                          {DEVICES_DATA.findIndex((d) => d.id === selectedDevice) + 1} de {DEVICES_DATA.length}
+                        </span>
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="font-semibold text-sm text-apple-text truncate">{device.name}</h4>
-                        <p className="text-xs text-apple-gray truncate">{device.tagline}</p>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handlePrevDevice}
+                          className="w-8 h-8 rounded-full bg-apple-bg hover:bg-black/5 active:scale-95 text-apple-text flex items-center justify-center transition-all border border-black/5 cursor-pointer"
+                          aria-label="Anterior producto"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleNextDevice}
+                          className="w-8 h-8 rounded-full bg-apple-bg hover:bg-black/5 active:scale-95 text-apple-text flex items-center justify-center transition-all border border-black/5 cursor-pointer"
+                          aria-label="Siguiente producto"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold shrink-0 border border-emerald-100 flex items-center gap-1"
-                    >
-                      <span>Cotizar</span>
-                      <span>↗</span>
-                    </button>
+
+                    {/* Centered Device Graphic Stage with Floating Animation */}
+                    <div className="relative min-h-[310px] flex items-center justify-center my-2 select-none">
+                      <motion.div
+                        className="w-full flex items-center justify-center"
+                        animate={{ y: [0, -7, 0] }}
+                        transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
+                      >
+                        <AnimatePresence mode="wait">
+                          {/* 1. MACBOOK VERTICAL RENDER */}
+                          {selectedDevice === 'macbook' && (
+                            <motion.div
+                              key="macbook-vertical"
+                              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.92, y: -15 }}
+                              transition={{ duration: 0.3 }}
+                              onClick={() => handleDeviceQuote(currentDevice)}
+                              className="cursor-pointer flex flex-col items-center group"
+                            >
+                              <div className="relative w-[265px] xs:w-[290px] h-[165px] xs:h-[180px] bg-[#141416] rounded-t-[16px] p-[7px] shadow-[0_18px_40px_rgba(0,0,0,0.22)] border-t border-x border-gray-700/60 flex flex-col justify-between">
+                                <div className="absolute top-[7px] left-1/2 -translate-x-1/2 w-24 h-3.5 bg-[#141416] rounded-b-md z-20 flex items-center justify-center">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-900 border border-black/40" />
+                                  <div className="w-1 h-1 rounded-full bg-emerald-500 ml-1.5 opacity-80" />
+                                </div>
+
+                                <div className="w-full h-full rounded-[9px] overflow-hidden relative bg-gradient-to-br from-indigo-950 via-slate-900 to-amber-950 flex flex-col justify-between p-2.5">
+                                  <div className="absolute inset-0 opacity-45 bg-[radial-gradient(circle_at_top_right,#FF5E3A,transparent_60%),radial-gradient(circle_at_bottom_left,#007AFF,transparent_60%)]" />
+                                  
+                                  <div className="relative z-10 flex items-center justify-between text-[8px] text-white/90 font-medium px-1">
+                                    <span className="font-bold"> Pixel Cero</span>
+                                    <span>Importación USA</span>
+                                  </div>
+
+                                  <div className="relative z-10 flex flex-col items-center justify-center text-center">
+                                    <span className="text-xl font-bold tracking-tight text-white/95">MacBook</span>
+                                    <span className="text-[10px] text-white/70 font-medium mt-0.5">Chips Apple Silicon</span>
+                                  </div>
+
+                                  <div className="relative z-10 mx-auto px-2.5 py-0.5 bg-white/15 backdrop-blur-xl rounded-lg border border-white/20 flex items-center gap-1.5">
+                                    <div className="w-3 h-3 rounded bg-blue-500/80" />
+                                    <div className="w-3 h-3 rounded bg-purple-500/80" />
+                                    <div className="w-3 h-3 rounded bg-emerald-500/80" />
+                                    <div className="w-3 h-3 rounded bg-amber-500/80" />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="relative w-[285px] xs:w-[310px] h-[13px] bg-gradient-to-b from-[#2B2B30] to-[#1E1E22] rounded-b-[12px] shadow-[0_12px_25px_rgba(0,0,0,0.3)] border-t border-gray-600/70 flex justify-center items-start">
+                                <div className="w-14 h-1 bg-[#141416] rounded-b-md" />
+                              </div>
+                              <div className="w-[240px] h-3 bg-black/15 rounded-full blur-sm mt-1" />
+                            </motion.div>
+                          )}
+
+                          {/* 2. IPHONE VERTICAL RENDER */}
+                          {selectedDevice === 'iphone' && (
+                            <motion.div
+                              key="iphone-vertical"
+                              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.92, y: -15 }}
+                              transition={{ duration: 0.3 }}
+                              onClick={() => handleDeviceQuote(currentDevice)}
+                              className="cursor-pointer flex flex-col items-center group"
+                            >
+                              <div className="relative w-[160px] h-[310px] bg-[#9E9B97] rounded-[40px] p-[5px] shadow-[0_22px_40px_rgba(0,0,0,0.2)] border-2 border-[#BEBCB8] flex flex-col justify-between">
+                                <div className="absolute -left-1.5 top-16 w-1 h-5 bg-[#8C8985] rounded-l-xs" />
+                                <div className="absolute -left-1.5 top-23 w-1 h-7 bg-[#8C8985] rounded-l-xs" />
+                                <div className="absolute -left-1.5 top-32 w-1 h-7 bg-[#8C8985] rounded-l-xs" />
+                                <div className="absolute -right-1.5 top-26 w-1 h-8 bg-[#8C8985] rounded-r-xs" />
+
+                                <div className="w-full h-full bg-black rounded-[35px] overflow-hidden relative flex flex-col justify-between p-3 border border-black/80">
+                                  <div className="w-18 h-4.5 bg-black rounded-full mx-auto mt-0.5 border border-white/10 flex items-center justify-between px-2 text-[7px] text-white/90">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500/80" />
+                                    <span className="text-[7px] text-emerald-400 font-mono">100%</span>
+                                  </div>
+
+                                  <div className="text-center my-auto">
+                                    <span className="text-[10px] text-white/70 font-medium block">Lunes, 9 de Septiembre</span>
+                                    <span className="text-3xl font-light text-white tracking-tight">09:41</span>
+                                    
+                                    <div className="mt-2.5 inline-flex items-center gap-1 px-2 py-0.5 bg-white/15 backdrop-blur-md rounded-full text-[8px] text-white/90 border border-white/20">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                      <span>100% Desbloqueado de Fábrica</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex justify-between items-center px-1 text-white/70">
+                                    <div className="w-5 h-5 rounded-full bg-white/15 flex items-center justify-center text-[9px]">🔦</div>
+                                    <div className="w-10 h-1 bg-white/70 rounded-full" />
+                                    <div className="w-5 h-5 rounded-full bg-white/15 flex items-center justify-center text-[9px]">📷</div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="w-24 h-3 bg-black/15 rounded-full blur-sm mt-1" />
+                            </motion.div>
+                          )}
+
+                          {/* 3. IPAD VERTICAL RENDER */}
+                          {selectedDevice === 'ipad' && (
+                            <motion.div
+                              key="ipad-vertical"
+                              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.92, y: -15 }}
+                              transition={{ duration: 0.3 }}
+                              onClick={() => handleDeviceQuote(currentDevice)}
+                              className="cursor-pointer flex flex-col items-center group"
+                            >
+                              <div className="w-32 h-2 bg-gradient-to-r from-gray-100 via-white to-gray-200 rounded-full shadow-xs border border-gray-300/80 mb-1 flex items-center justify-end pr-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                              </div>
+
+                              <div className="relative w-[185px] h-[260px] bg-[#1C1C1E] rounded-[26px] p-[6px] shadow-[0_20px_40px_rgba(0,0,0,0.2)] border border-gray-700/60 flex flex-col justify-between">
+                                <div className="w-full h-full bg-black rounded-[20px] overflow-hidden relative p-3 flex flex-col justify-between bg-gradient-to-tr from-cyan-950 via-slate-900 to-fuchsia-950">
+                                  <div className="flex justify-between items-center text-[8px] text-white/80 font-medium">
+                                    <span>9:41 AM</span>
+                                    <span className="text-[7px] bg-white/20 px-1.5 py-0.5 rounded-sm">Apple Pencil</span>
+                                  </div>
+
+                                  <div className="text-center my-auto">
+                                    <span className="text-base font-bold text-white block tracking-tight">iPad</span>
+                                    <span className="text-[10px] text-cyan-300 font-medium">Pantalla Liquid Retina</span>
+                                  </div>
+
+                                  <div className="w-14 h-1 bg-white/60 rounded-full mx-auto" />
+                                </div>
+                              </div>
+                              <div className="w-28 h-3 bg-black/15 rounded-full blur-sm mt-1" />
+                            </motion.div>
+                          )}
+
+                          {/* 4. APPLE WATCH VERTICAL RENDER */}
+                          {selectedDevice === 'watch' && (
+                            <motion.div
+                              key="watch-vertical"
+                              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.92, y: -15 }}
+                              transition={{ duration: 0.3 }}
+                              onClick={() => handleDeviceQuote(currentDevice)}
+                              className="cursor-pointer flex flex-col items-center group"
+                            >
+                              <div className="w-12 h-6 bg-[#FF6A13] rounded-t-lg shadow-xs border border-[#E05300]" />
+                              <div className="relative w-24 h-28 bg-gradient-to-b from-[#D4D2CD] via-[#ECEAE5] to-[#B8B5AE] rounded-[26px] p-2 shadow-[0_15px_35px_rgba(0,0,0,0.18)] border-2 border-[#E1DFD9] flex items-center justify-center">
+                                <div className="absolute -left-1 top-8 w-1 h-5 bg-[#FF6A13] rounded-l-xs" />
+                                <div className="absolute -right-1.5 top-6 w-2 h-7 bg-gradient-to-b from-gray-400 via-white to-gray-400 rounded-r-md border-r-2 border-[#FF6A13]" />
+
+                                <div className="w-full h-full bg-black rounded-[18px] flex flex-col items-center justify-between p-2 text-[10px] text-white font-mono overflow-hidden relative">
+                                  <div className="absolute inset-1 rounded-[14px] border border-orange-500/40 pointer-events-none" />
+                                  <div className="flex justify-between w-full text-[9px] text-orange-400 font-bold z-10">
+                                    <span>9:41</span>
+                                    <span>44MM</span>
+                                  </div>
+                                  <div className="text-center text-xs font-bold text-white z-10">
+                                    <span className="text-[12px] text-orange-500">APPLE</span>
+                                    <div className="text-[9px] text-gray-400 font-normal">Watch</div>
+                                  </div>
+                                  <div className="flex justify-between w-full text-[8px] text-gray-400 z-10">
+                                    <span>100%</span>
+                                    <span className="text-emerald-400">GPS</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="w-12 h-6 bg-[#FF6A13] rounded-b-lg shadow-xs border border-[#E05300]" />
+                              <div className="w-20 h-3 bg-black/10 rounded-full blur-sm mt-1" />
+                            </motion.div>
+                          )}
+
+                          {/* 5. AIRPODS VERTICAL RENDER */}
+                          {selectedDevice === 'airpods' && (
+                            <motion.div
+                              key="airpods-vertical"
+                              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.92, y: -15 }}
+                              transition={{ duration: 0.3 }}
+                              onClick={() => handleDeviceQuote(currentDevice)}
+                              className="cursor-pointer flex flex-col items-center group"
+                            >
+                              <div className="relative w-28 h-24 bg-gradient-to-b from-white via-gray-50 to-gray-200 rounded-[30px] shadow-[0_15px_35px_rgba(0,0,0,0.12)] border border-gray-300/80 flex flex-col items-center justify-between p-2.5">
+                                <div className="w-10 h-1.5 bg-gradient-to-r from-gray-300 via-gray-100 to-gray-300 rounded-full mt-0.5 opacity-80" />
+                                <div className="flex justify-center gap-3.5">
+                                  <div className="w-6 h-8 bg-white rounded-full shadow-inner border border-gray-200 flex flex-col items-center justify-start pt-1">
+                                    <div className="w-3 h-1 bg-black/60 rounded-full" />
+                                  </div>
+                                  <div className="w-6 h-8 bg-white rounded-full shadow-inner border border-gray-200 flex flex-col items-center justify-start pt-1">
+                                    <div className="w-3 h-1 bg-black/60 rounded-full" />
+                                  </div>
+                                </div>
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10B981] mb-1" />
+                              </div>
+                              <div className="w-24 h-3 bg-black/10 rounded-full blur-sm mt-2" />
+                            </motion.div>
+                          )}
+
+                          {/* 6. HOMEPOD VERTICAL RENDER */}
+                          {selectedDevice === 'homepod' && (
+                            <motion.div
+                              key="homepod-vertical"
+                              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.92, y: -15 }}
+                              transition={{ duration: 0.3 }}
+                              onClick={() => handleDeviceQuote(currentDevice)}
+                              className="cursor-pointer flex flex-col items-center group"
+                            >
+                              <div className="relative w-24 h-24 rounded-full bg-gradient-to-b from-[#3A3A3C] via-[#2C2C2E] to-[#1C1C1E] shadow-[0_15px_30px_rgba(0,0,0,0.25)] border border-gray-600/40 flex items-center justify-center overflow-hidden">
+                                <div className="absolute inset-0 opacity-25 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:4px_4px]" />
+                                <div className="absolute top-1.5 w-14 h-7 rounded-full bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-amber-400 opacity-90 shadow-[0_0_14px_#38BDF8] flex items-center justify-center">
+                                  <div className="w-3.5 h-3.5 rounded-full bg-white/80 blur-xs" />
+                                </div>
+                              </div>
+                              <div className="w-20 h-2.5 bg-black/15 rounded-full blur-sm mt-1.5" />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    </div>
+
+                    {/* Device Information & Primary Action Button */}
+                    <div className="pt-4 border-t border-gray-100">
+                      <div className="text-center mb-3">
+                        <h3 className="text-xl font-bold text-apple-text tracking-tight">
+                          {currentDevice.name}
+                        </h3>
+                        <p className="text-xs text-apple-gray mt-0.5">
+                          {currentDevice.tagline}
+                        </p>
+                      </div>
+
+                      {/* Specs Highlights */}
+                      <div className="space-y-1.5 mb-4 bg-apple-bg/70 p-3 rounded-2xl border border-black/5">
+                        {currentDevice.specs.slice(0, 2).map((spec, sIdx) => (
+                          <div key={sIdx} className="flex items-start gap-2 text-left">
+                            <CheckCircle2 size={13} className="text-emerald-600 shrink-0 mt-0.5" />
+                            <span className="text-[11px] text-apple-text leading-tight">{spec}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Prominent Direct WhatsApp Quote Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeviceQuote(currentDevice)}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white py-3 px-4 rounded-2xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                        </svg>
+                        <span>Cotizar {currentDevice.name} en WhatsApp</span>
+                        <ChevronRight size={14} />
+                      </button>
+
+                      {/* Pagination Indicator Dots */}
+                      <div className="flex items-center justify-center gap-1.5 mt-3">
+                        {DEVICES_DATA.map((dev) => {
+                          const isActive = dev.id === selectedDevice;
+                          return (
+                            <button
+                              key={dev.id}
+                              type="button"
+                              onClick={() => setSelectedDevice(dev.id)}
+                              aria-label={`Ver ${dev.name}`}
+                              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                                isActive ? 'w-6 bg-apple-blue' : 'w-1.5 bg-gray-300 hover:bg-gray-400'
+                              }`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
             </div>
 
             {/* DIRECT SEARCH INPUT */}
