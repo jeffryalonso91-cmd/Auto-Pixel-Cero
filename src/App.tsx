@@ -20,7 +20,7 @@ const Admin = lazy(() => import('./components/Admin'));
 import Reviews from './components/Reviews';
 import PopupBanner from './components/PopupBanner';
 import ScrollToTop from './components/ScrollToTop';
-import { PRODUCTS, Product, CONFIG } from './data';
+import { PRODUCTS, Product, CONFIG, normalizePrice } from './data';
 
 export const ConfigContext = createContext(CONFIG);
 
@@ -57,6 +57,7 @@ const getInitialProducts = (): Product[] => {
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed.map((p: Product) => ({
           ...p,
+          price: normalizePrice(p.price),
           comments: p.comments !== undefined && p.comments !== '' ? p.comments : (commentsMap[p.id] || '')
         }));
       }
@@ -70,7 +71,10 @@ const getInitialConfig = () => {
     const cached = localStorage.getItem('pixelcero_config_cache');
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed && typeof parsed === 'object') return { ...CONFIG, ...parsed };
+      if (parsed && typeof parsed === 'object') {
+        const symbol = parsed.currencySymbol === '$' || !parsed.currencySymbol ? '₡' : parsed.currencySymbol;
+        return { ...CONFIG, ...parsed, currencySymbol: symbol };
+      }
     }
   } catch (e) {}
   return CONFIG;
@@ -95,6 +99,7 @@ export default function App() {
     const map = customMap || commentsMapRef.current || {};
     return items.map(p => ({
       ...p,
+      price: normalizePrice(p.price),
       comments: p.comments !== undefined && p.comments !== '' ? p.comments : (map[p.id] || '')
     }));
   };
@@ -131,7 +136,7 @@ export default function App() {
     // Load from durable localforage cache if available
     localforage.getItem<Product[]>('pixelcero_products_cache').then((cached) => {
       if (cached && Array.isArray(cached) && cached.length > 0 && isMounted) {
-        setProducts(cached);
+        setProducts(cached.map(p => ({ ...p, price: normalizePrice(p.price) })));
       }
     }).catch(() => {});
 
@@ -185,7 +190,7 @@ export default function App() {
                  facebookUrl: parsedSocials.facebookUrl ?? storeData.facebook_url ?? prev.facebookUrl,
                  tiktokUrl: parsedSocials.tiktokUrl ?? storeData.tiktok_url ?? prev.tiktokUrl,
                  businessHours: storeData.business_hours ?? prev.businessHours,
-                 currencySymbol: storeData.currency_symbol ?? prev.currencySymbol,
+                 currencySymbol: (storeData.currency_symbol === '$' || !storeData.currency_symbol) ? '₡' : storeData.currency_symbol,
                  logoUrl: storeData.logo_url ?? prev.logoUrl,
                  
                  popupEnabled: storeData.popup_enabled ?? prev.popupEnabled,
@@ -248,7 +253,7 @@ export default function App() {
              facebookUrl: parsedSocials.facebookUrl ?? storeData.facebook_url ?? prev.facebookUrl,
              tiktokUrl: parsedSocials.tiktokUrl ?? storeData.tiktok_url ?? prev.tiktokUrl,
              businessHours: storeData.business_hours ?? prev.businessHours,
-             currencySymbol: storeData.currency_symbol ?? prev.currencySymbol,
+             currencySymbol: (storeData.currency_symbol === '$' || !storeData.currency_symbol) ? '₡' : storeData.currency_symbol,
              logoUrl: storeData.logo_url ?? prev.logoUrl,
                  
              popupEnabled: storeData.popup_enabled ?? prev.popupEnabled,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import localforage from 'localforage';
 import { supabase } from '../supabase';
-import { Product } from '../data';
+import { Product, formatPrice, normalizePrice } from '../data';
 import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload, Key, ShieldCheck, RefreshCw, Instagram, Facebook } from 'lucide-react';
 import { TikTokSvg } from './SocialIcons';
 
@@ -750,7 +750,7 @@ export default function Admin({
                       {p.model}
                     </td>
                     <td className="px-6 py-4 text-apple-gray">{p.storage}</td>
-                    <td className="px-6 py-4 font-medium text-apple-text">${p.price}</td>
+                    <td className="px-6 py-4 font-semibold text-apple-text">{formatPrice(p.price, storeConfig?.currencySymbol || '₡')}</td>
                     <td className="px-6 py-4 text-apple-gray">{p.battery}</td>
                     <td className="px-6 py-4 text-apple-gray">{p.condition}</td>
                     <td className="px-6 py-4">
@@ -802,8 +802,8 @@ export default function Admin({
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Precio ($)</label>
-                    <input required type="number" name="price" defaultValue={editing.price} className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all placeholder:text-gray-400" placeholder="999" />
+                    <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Precio en Colones ({storeConfig?.currencySymbol || '₡'})</label>
+                    <input required type="number" name="price" defaultValue={editing.price ? normalizePrice(editing.price) : ''} className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all placeholder:text-gray-400" placeholder="Ej: 450000" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Capacidad</label>
@@ -1160,6 +1160,18 @@ export default function Admin({
                   onChange={(e) => setTempConfig({...(tempConfig || {}), businessHours: e.target.value})}
                   className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Símbolo de Moneda (Colones)</label>
+                <input
+                  type="text"
+                  placeholder="₡"
+                  value={tempConfig?.currencySymbol || "₡"}
+                  onChange={(e) => setTempConfig({...(tempConfig || {}), currencySymbol: e.target.value})}
+                  className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all"
+                />
+                <span className="text-xs text-apple-gray ml-1 mt-1.5 block">Símbolo actual: <strong>{tempConfig?.currencySymbol || '₡'}</strong>. Los precios en toda la tienda se muestran con separador de miles costarricense (ej: ₡450.000).</span>
               </div>
               
               <div className="pt-4 border-t border-gray-100 flex flex-wrap items-center gap-4">

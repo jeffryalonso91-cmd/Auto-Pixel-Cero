@@ -1,7 +1,7 @@
 import { motion, AnimatePresence, useInView } from 'motion/react';
 import { useContext } from 'react';
 import { ConfigContext } from '../App';
-import type { Product } from '../data';
+import { type Product, formatPrice } from '../data';
 import { MessageCircle, X, ChevronLeft, ChevronRight, Search, ZoomIn, ZoomOut, RotateCcw, ChevronDown } from 'lucide-react';
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 
@@ -580,8 +580,8 @@ function ProductCard({ product, index, config, handleWhatsApp, setActiveGallery 
         </AnimatePresence>
         
         <div className="mt-auto flex items-center justify-between pt-2">
-          <span className="text-xl font-medium tracking-tight">
-            {config.currencySymbol}{product.price}
+          <span className="text-xl font-semibold tracking-tight text-apple-text">
+            {formatPrice(product.price, config.currencySymbol)}
           </span>
           <button 
             onClick={(e) => {
@@ -608,7 +608,8 @@ export default function Catalog({ products }: { products: Product[] }) {
   const config = useContext(ConfigContext);
 
   const handleWhatsApp = (model: string, price: number) => {
-    const message = encodeURIComponent(`Hola ${config.storeName}, estoy interesado en el ${model} por ${config.currencySymbol}${price}. ¿Aún está disponible?`);
+    const formattedPrice = formatPrice(price, config.currencySymbol);
+    const message = encodeURIComponent(`Hola ${config.storeName}, estoy interesado en el ${model} por ${formattedPrice}. ¿Aún está disponible?`);
     window.open(`https://wa.me/${config.whatsappNumber.replace(/[^0-9]/g, '')}?text=${message}`, '_blank');
   };
 
@@ -620,9 +621,13 @@ export default function Catalog({ products }: { products: Product[] }) {
       
       // 2. Search Query Filter
       if (searchQuery.trim() !== '') {
-        const query = searchQuery.toLowerCase();
-        const searchString = `${p.model} ${p.storage} ${p.condition} ${p.battery} ${p.price}`.toLowerCase();
-        if (!searchString.includes(query)) return false;
+        const query = searchQuery.toLowerCase().trim();
+        const cleanQuery = query.replace(/[₡$.,\s]/g, '');
+        const formatted = formatPrice(p.price, config.currencySymbol).toLowerCase();
+        const cleanFormatted = formatted.replace(/[₡$.,\s]/g, '');
+        const rawPrice = String(p.price);
+        const searchString = `${p.model} ${p.storage} ${p.condition} ${p.battery} ${rawPrice} ${formatted} ${cleanFormatted}`.toLowerCase();
+        if (!searchString.includes(query) && (!cleanQuery || !searchString.includes(cleanQuery))) return false;
       }
       
       return true;
