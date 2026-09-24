@@ -1138,7 +1138,7 @@ export default function PedidoEspecial({ onBack, onNavigate }: PedidoEspecialPro
               <div className="mt-6 flex items-center justify-center gap-6 text-xs text-white/50">
                 <span>WhatsApp oficial: +506 6048-5912</span>
                 <span>&middot;</span>
-                <span>San José, Costa Rica</span>
+                <span>Heredia, Costa Rica</span>
               </div>
             </div>
           </motion.div>
