@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import localforage from 'localforage';
 import { supabase } from '../supabase';
-import { Product, formatPrice, normalizePrice } from '../data';
+import { Product, formatPrice, normalizePrice, sortProducts } from '../data';
 import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload, Key, ShieldCheck, RefreshCw, Instagram, Facebook } from 'lucide-react';
 import { TikTokSvg } from './SocialIcons';
 
@@ -198,6 +198,8 @@ export default function Admin({
   const [reviews, setReviews] = useState<any[]>([]);
   const [deleteReviewConfirm, setDeleteReviewConfirm] = useState<any | null>(null);
   const [reviewActionLoading, setReviewActionLoading] = useState<string | null>(null);
+
+  const sortedProducts = useMemo(() => sortProducts(products, false), [products]);
 
   const [adminUsers, setAdminUsers] = useState<{ username: string }[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -499,6 +501,7 @@ export default function Admin({
         status: (formData.get('status') as 'Disponible' | 'Vendido') || 'Disponible',
         comments: (formData.get('comments') as string)?.trim() || '',
         images: sanitizedImages,
+        createdAt: editing?.createdAt || new Date().toISOString(),
       };
 
       let { error } = await supabase.from('products').upsert(product);
@@ -545,7 +548,7 @@ export default function Admin({
       }
 
       const updatedProducts = isNew 
-        ? [...products, product] 
+        ? [product, ...products] 
         : products.map(p => p.id === product.id ? product : p);
 
       setProducts(updatedProducts);
@@ -734,14 +737,14 @@ export default function Admin({
                 </tr>
               </thead>
               <tbody>
-                {products.length === 0 ? (
+                {sortedProducts.length === 0 ? (
                    <tr>
                      <td colSpan={7} className="px-6 py-12 text-center text-apple-gray">
                        No hay artículos en el inventario. Haz clic en "Nuevo Artículo" para empezar.
                      </td>
                    </tr>
                 ) : null}
-                {products.map(p => (
+                {sortedProducts.map(p => (
                   <tr key={p.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 font-medium text-apple-text flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-apple-bg overflow-hidden flex-shrink-0">

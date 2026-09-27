@@ -52,6 +52,27 @@ export type Product = {
   images: string[];
   status?: 'Disponible' | 'Vendido';
   comments?: string;
+  createdAt?: string | number;
+};
+
+export const getTimestamp = (p: Product): number => {
+  if (p.createdAt) {
+    const t = typeof p.createdAt === 'number' ? p.createdAt : Date.parse(String(p.createdAt));
+    if (!isNaN(t) && t > 0) return t;
+  }
+  const numId = Number(p.id);
+  if (!isNaN(numId) && numId > 100000000) return numId;
+  if (!isNaN(numId)) return 100000000 - numId;
+  return 0;
+};
+
+export const sortProducts = (products: Product[], prioritizeAvailable: boolean = true): Product[] => {
+  const sorted = [...products].sort((a, b) => getTimestamp(b) - getTimestamp(a));
+  if (!prioritizeAvailable) return sorted;
+
+  const available = sorted.filter(p => p.status !== 'Vendido');
+  const sold = sorted.filter(p => p.status === 'Vendido');
+  return [...available, ...sold];
 };
 
 export const PRODUCTS: Product[] = [
@@ -64,6 +85,7 @@ export const PRODUCTS: Product[] = [
     price: 460000,
     images: ["https://images.unsplash.com/photo-1678652197831-2d180705cd2c?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
+    createdAt: "2026-03-20T10:00:00.000Z",
   },
   {
     id: "2",
@@ -74,6 +96,7 @@ export const PRODUCTS: Product[] = [
     price: 410000,
     images: ["https://images.unsplash.com/photo-1695048064971-d68a98f1ac51?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
+    createdAt: "2026-03-18T10:00:00.000Z",
   },
   {
     id: "3",
@@ -84,6 +107,7 @@ export const PRODUCTS: Product[] = [
     price: 310000,
     images: ["https://images.unsplash.com/photo-1662993132644-884ec85c7f8a?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
+    createdAt: "2026-03-15T10:00:00.000Z",
   },
   {
     id: "4",
@@ -94,6 +118,7 @@ export const PRODUCTS: Product[] = [
     price: 335000,
     images: ["https://images.unsplash.com/photo-1632661674596-618d8b64d641?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
+    createdAt: "2026-03-10T10:00:00.000Z",
   },
   {
     id: "5",
@@ -104,6 +129,7 @@ export const PRODUCTS: Product[] = [
     price: 285000,
     images: ["https://images.unsplash.com/photo-1632661674596-618d8b64d641?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
+    createdAt: "2026-03-05T10:00:00.000Z",
   },
   {
     id: "6",
@@ -114,5 +140,6 @@ export const PRODUCTS: Product[] = [
     price: 130000,
     images: ["https://images.unsplash.com/photo-1574856344991-abc31b6caa8e?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
+    createdAt: "2026-02-28T10:00:00.000Z",
   }
 ];

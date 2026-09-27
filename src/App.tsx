@@ -58,6 +58,7 @@ const getInitialProducts = (): Product[] => {
         return parsed.map((p: Product) => ({
           ...p,
           price: normalizePrice(p.price),
+          createdAt: (p as any).created_at || p.createdAt || (p.id && p.id.length > 8 ? Number(p.id) : undefined),
           comments: p.comments !== undefined && p.comments !== '' ? p.comments : (commentsMap[p.id] || '')
         }));
       }
@@ -100,6 +101,7 @@ export default function App() {
     return items.map(p => ({
       ...p,
       price: normalizePrice(p.price),
+      createdAt: (p as any).created_at || p.createdAt || (p.id && p.id.length > 8 ? Number(p.id) : undefined),
       comments: p.comments !== undefined && p.comments !== '' ? p.comments : (map[p.id] || '')
     }));
   };
@@ -136,7 +138,11 @@ export default function App() {
     // Load from durable localforage cache if available
     localforage.getItem<Product[]>('pixelcero_products_cache').then((cached) => {
       if (cached && Array.isArray(cached) && cached.length > 0 && isMounted) {
-        setProducts(cached.map(p => ({ ...p, price: normalizePrice(p.price) })));
+        setProducts(cached.map(p => ({
+          ...p,
+          price: normalizePrice(p.price),
+          createdAt: (p as any).created_at || p.createdAt || (p.id && p.id.length > 8 ? Number(p.id) : undefined)
+        })));
       }
     }).catch(() => {});
 

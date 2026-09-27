@@ -1,7 +1,7 @@
 import { motion, AnimatePresence, useInView } from 'motion/react';
 import { useContext } from 'react';
 import { ConfigContext } from '../App';
-import { type Product, formatPrice } from '../data';
+import { type Product, formatPrice, sortProducts } from '../data';
 import { MessageCircle, X, ChevronLeft, ChevronRight, Search, ZoomIn, ZoomOut, RotateCcw, ChevronDown } from 'lucide-react';
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 
@@ -633,14 +633,8 @@ export default function Catalog({ products }: { products: Product[] }) {
       return true;
     });
 
-    // Siempre mostrar primero los artículos disponibles y después los vendidos
-    return list.sort((a, b) => {
-      const aAvailable = a.status !== 'Vendido';
-      const bAvailable = b.status !== 'Vendido';
-      if (aAvailable && !bAvailable) return -1;
-      if (!aAvailable && bAvailable) return 1;
-      return 0;
-    });
+    // Mostrar primero los artículos disponibles (más recientes primero) y luego los vendidos (más recientes primero)
+    return sortProducts(list, true);
   }, [products, filter, searchQuery]);
 
   return (

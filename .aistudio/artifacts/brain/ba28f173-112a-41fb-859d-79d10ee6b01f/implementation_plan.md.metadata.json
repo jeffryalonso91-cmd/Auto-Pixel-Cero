@@ -1,0 +1,6 @@
+{
+  "summary":  "Plan de implementación para ordenar los artículos de la tienda por fecha de adición más reciente, mostrando primero los productos disponibles recién ingresados y al final los vendidos, tanto en el catálogo principal como en el panel de administración.",
+  "updatedAt":  "2026-09-27T22:02:10.071017845Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
