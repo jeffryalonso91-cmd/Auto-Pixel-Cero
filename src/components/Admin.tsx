@@ -194,6 +194,15 @@ export default function Admin({
 
   const sortedProducts = useMemo(() => sortProducts(products, false), [products]);
 
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => {
+      setToastMessage(prev => prev?.text === text ? null : prev);
+    }, 3500);
+  };
+
   const [adminUsers, setAdminUsers] = useState<{ username: string }[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [newUsername, setNewUsername] = useState('');
@@ -507,11 +516,12 @@ export default function Admin({
       } catch (cacheErr) {}
       localforage.setItem('pixelcero_products_cache', updatedProducts).catch(() => {});
 
-      // 2. CLOSE MODAL IMMEDIATELY
+      // 2. CLOSE MODAL IMMEDIATELY & SHOW CONFIRMATION
       setEditing(null);
       setIsNew(false);
       setEditingImages([]);
       setSavingProduct(false);
+      showToast(isNew ? 'Artículo creado correctamente' : 'Artículo actualizado con éxito');
 
       // 3. BACKGROUND PARALLEL SYNC TO ALL DATABASES (Zero UI blocking)
       (async () => {
@@ -619,6 +629,7 @@ export default function Admin({
         localStorage.setItem('pixelcero_products_cache', JSON.stringify(updatedProducts));
       } catch (e) {}
       localforage.setItem('pixelcero_products_cache', updatedProducts).catch(() => {});
+      showToast('Artículo eliminado del inventario');
 
       // Background parallel delete
       (async () => {
@@ -1431,6 +1442,19 @@ export default function Admin({
   </div>
 )}
       </div>
+
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-bounce-short">
+          <div className={`px-5 py-3.5 rounded-2xl shadow-xl border flex items-center gap-3 text-sm font-medium ${
+            toastMessage.type === 'error'
+              ? 'bg-red-600 text-white border-red-500 shadow-red-500/20'
+              : 'bg-zinc-900 text-white border-zinc-800 shadow-black/20'
+          }`}>
+            <span className="w-2 h-2 rounded-full bg-green-400"></span>
+            <span>{toastMessage.text}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
