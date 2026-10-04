@@ -1,69 +1,96 @@
-# Plan de Investigación, Instrumentación y Corrección de Transparencia PNG
+# Orden de Inventario por Fecha de Adición Reciente
 
-Plan de ejecución estructurado en 3 Fases para investigar el pipeline de imágenes, instrumentar diagnóstico visible en navegador y corregir la transparencia y pendientes visuales de la interfaz.
-
----
-
-## FASE 1: Investigación del Código (Paso a Paso)
-
-- **Etapa A (Selección)**: `<input type="file">` lee el archivo sin alteración mediante `FileReader.readAsDataURL`.
-- **Etapa B (Procesamiento)**: `processProductImageHD` en `src/components/Admin.tsx` procesa la imagen.
-  - Para archivos PNG/WebP, genera `image/webp` (0.9) o `image/png` con `alpha: true` y sin pintar ningún fondo (`ctx.fillRect` eliminado). Redimensiona a máximo **1600px**.
-- **Etapa C (Almacenamiento)**: Las imágenes se persisten como Data URLs base64 con MIME type coherente (`data:image/webp;base64,...` o `data:image/png;base64,...`) directamente en Firestore/localforage.
-- **Etapa D (Entrega)**: Se sirven directamente sin transformaciones de servidor Sharp o CDN externo.
-- **Etapa E (Lectura)**: Se utiliza `images[0]` como portada principal.
-- **Etapa F (Pintura)**:
-  - Imágenes con transparencia: `object-fit: contain`, `background: transparent`, `filter: drop-shadow(0 24px 24px rgba(20,10,60,.28))`.
-  - Imágenes aplanadas de origen: **Escenario Adaptable** que funde el color de las esquinas o muestra la foto en un recuadro limpio.
+Implementación del ordenamiento cronológico inverso (los más nuevos primero) en el catálogo de la página principal y en el panel de administración, priorizando los artículos disponibles recién agregados y ubicando los artículos vendidos al final.
 
 ---
 
-## FASE 2: Instrumentación y Diagnóstico Visible
+### Decisiones Críticas y Confirmaciones del Usuario
 
-1. **Crear `src/utils/analyzeAlpha.ts`**:
-   - Función `analyzeAlpha(source: string | File | Blob)`:
-     - Dibuja la imagen en un canvas reducido (128x128 px).
-     - Calcula el porcentaje de píxeles con `alpha < 250`.
-     - Analiza el valor de Alfa y color RGB en las 4 esquinas (`(0,0)`, `(127,0)`, `(0,127)`, `(127,127)`).
-     - Determina si las 4 esquinas tienen un color uniforme.
-     - Maneja errores de CORS con `try/catch` devolviendo `"no medible: [motivo]"`.
-2. **Registros en consola `[IMG]`**:
-   - Durante la subida en `Admin.tsx`, imprime cada etapa con etiqueta `[IMG]` y la tabla final marcando dónde sobrevive el Alfa.
-3. **Prueba automatizada `window.__probarPipelineAlfa()`**:
-   - Función global en el objeto `window` que genera un PNG sintético con transparencia, lo procesa con `processProductImageHD` y certifica en consola si el canal Alfa sobrevivió intacto.
-4. **Modo depuración `?debugImg=1`**:
-   - Al agregar `?debugImg=1` a la URL del navegador, se despliega una pequeña etiqueta superpuesta sobre cada tarjeta del catálogo con:
-     - Formato real (Content-Type)
-     - Dimensiones naturales (`naturalWidth` x `naturalHeight`)
-     - Porcentaje de transparencia Alfa
-     - Modo elegido (Recorte, Escenario Adaptable o Foto)
-     - URL
+> [!IMPORTANT]
+> Se han incorporado las preferencias confirmadas en la etapa de clarificación:
+
+- **Jerarquía en Catálogo Principal**:
+  1. **Disponibles recién agregados** (ordenados de más nuevo a más antiguo).
+  2. **Disponibles anteriores** (según fecha de adición).
+  3. **Artículos vendidos** (agrupados al final, ordenados también de forma cronológica).
+- **Consistencia en Panel de Administración**:
+  - La tabla de gestión de inventario en `#admin` mostrará igualmente los artículos más recientes en la parte superior para facilitar su edición y control de stock inmediato.
 
 ---
 
-## FASE 3: Correcciones y Pendientes Visuales
+## 1. Visión General y Concepto
 
-1. **Escenario Adaptable para imágenes aplanadas**:
-   - Si la foto subida es opaca (0% transparencia):
-     - Si las 4 esquinas son de un color uniforme (ej. negro o blanco), el contenedor del escenario se pinta exactamente con ese color de fondo y la foto se renderiza con `object-fit: contain`, logrando que los bordes de la foto se fundan perfectamente con el escenario sin mostrar rectángulos molestos.
-     - Si las esquinas no son uniformes, se aplica el recuadro foto limpio (`border-radius: 20px`, `object-fit: contain`) sobre un fondo suave.
-2. **Eliminación de Barra Oscura Flotante**:
-   - Eliminar por completo el componente `FloatingBar` ("¿Buscas otro modelo? Escríbenos") de `src/components/Catalog.tsx`.
-3. **Apilar Botones Flotantes (WhatsApp y Subir)**:
-   - Apilar en la esquina inferior derecha: Botón "Subir arriba" (`56px`), Botón "WhatsApp abajo" (`56px`), con `12px` de separación entre sí y `16px` del borde de la pantalla.
-   - Agregar `140px` de padding inferior a la página para evitar solapamientos.
-4. **Etiquetas "2 fotos" / "3 fotos"**:
-   - Posicionar la insignia centrada horizontalmente dentro de la zona de imagen a `12px` del borde inferior (`bottom-3`), completa y visible.
-5. **Alineación de Títulos**:
-   - Eliminar el espacio en blanco vacío cuando el título tiene solo 1 línea, manteniendo la alineación de las tarjetas mediante `margin-top: auto` en el pie de tarjeta.
+- **Qué hace**: Registra automáticamente la marca de tiempo (`createdAt`) en cada producto creado o existente. Organiza la vitrina pública y la vista administrativa para que cualquier equipo nuevo añadido aparezca de inmediato como primer elemento destacado.
+- **Público Objetivo**: Clientes de Pixel Cero que visitan la web en busca de nuevos ingresos de inventario de iPhones y el administrador de la tienda al registrar nuevos lotes.
+- **Valor Clave**: Mayor dinamismo comercial, visibilidad inmediata para las últimas adquisiciones y mejor experiencia de navegación sin necesidad de reordenar manualmente.
 
 ---
 
-## Plan de Ejecución de Archivos
+## 2. Experiencia de Usuario y Diseño Visual
 
-1. **`src/utils/analyzeAlpha.ts`**: Crear funciones `analyzeAlpha`, `checkImageOpaqueCorners` e instalar `window.__probarPipelineAlfa`.
-2. **`src/components/Admin.tsx`**: Integrar logs `[IMG]` y ajustar la función `processProductImageHD`.
-3. **`src/components/Catalog.tsx`**:
-   - Eliminar `FloatingBar`.
-   - Ajustar `ProductCardImage` con Escenario Adaptable y soporte para `?debugImg=1`.
-   - Reestructurar el pie y botones flotantes apilados de `56px`.
+### Flujo de Usuario
+
+1. **Ingreso a la Página Principal**:
+   - En la sección **"Disponibles para Entrega Inmediata"**, los primeros productos visibles en el carrusel y cuadrícula son los últimos modelos ingresados al stock.
+   - Los productos con etiqueta o estado *"Vendido"* se desplazan automáticamente a la sección final del catálogo para no opacar el inventario disponible.
+2. **Registro de un Nuevo Producto en Administración**:
+   - Al completar el formulario de nuevo iPhone en `#admin` y guardar, el sistema asigna la fecha y hora exacta.
+   - El nuevo producto encabeza inmediatamente la tabla de administración y la portada de la tienda.
+
+### Lineamientos de Diseño e Identidad
+
+- **Tipografía y Jerarquía**: Mantiene la estética sobria inspirada en Apple, con tipografía Inter, números tabulares y espaciado generoso.
+- **Sin Elementos Invasivos**: No se añaden insignias recargadas innecesarias; el orden natural y fluido comunica la novedad de manera limpia y profesional.
+- **Filtros Interactivos**: El buscador y los selectores de estado respetan el orden cronológico predeterminado.
+
+---
+
+## 3. Decisiones de Producto y Trade-Offs
+
+- **Estructura del Campo de Fecha (`createdAt`)**:
+  - *Enfoque Elegido*: Incorporar `createdAt` como marca de tiempo ISO 8601 estándar (`string`) en el tipo `Product`, con fallback inteligente para productos previos basado en su orden o ID.
+  - *Razón*: Máxima compatibilidad con Supabase (PostgreSQL `created_at` / `timestamp`), Firestore y almacenamiento local (`localforage` / `localStorage`).
+- **Lógica de Partición y Ordenamiento en Catálogo**:
+  - *Enfoque Elegido*: Función de ordenamiento pura y memoizada `sortProductsByDateAndAvailability(products)` que separa en dos grupos (`status !== 'Vendido'` vs `status === 'Vendido'`), ordena cada grupo por `createdAt` descendente, y los concatena.
+  - *Razón*: Garantiza que ningún producto vendido desplace a un producto disponible de los primeros lugares, manteniendo los nuevos ingresos como prioridad de venta.
+
+---
+
+## 4. Arquitectura Técnica y Estrategia de Datos
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Fuentes de Datos                         │
+│  Supabase (PostgreSQL) / Firestore / Cache LocalForage      │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Estado Global (App.tsx)                   │
+│   • Normalización de productos y timestamps (createdAt)     │
+│   • Sincronización en tiempo real vía suscripciones         │
+└──────────────┬───────────────────────────────┬──────────────┘
+               │                               │
+               ▼                               ▼
+┌──────────────────────────────┐ ┌─────────────────────────────┐
+│   Catálogo (Catalog.tsx)     │ │     Admin (Admin.tsx)       │
+│  • Separación: Disponibles   │ │  • Creación con timestamp   │
+│    vs. Vendidos              │ │    ISO actual               │
+│  • Orden: Recientes primero  │ │  • Tabla ordenada con los   │
+│  • Búsqueda y filtrado fluido│ │    más recientes arriba     │
+└──────────────────────────────┘ └─────────────────────────────┘
+```
+
+### Mapeo de Componentes y Funciones
+
+- `src/data.ts`:
+  - Extensión del tipo `Product` con `createdAt?: string`.
+  - Asignación de marcas de tiempo en el inventario base inicial `PRODUCTS`.
+  - Función de utilidad para ordenamiento `sortProductsByRecency(products, prioritizeAvailable)`.
+- `src/App.tsx`:
+  - Mantenimiento y persistencia del campo `createdAt` al cargar y fusionar datos de base de datos y caché.
+- `src/components/Catalog.tsx`:
+  - Aplicación del ordenamiento con prioridad de disponibles más recientes en la visualización de tarjetas y resultados filtrados.
+- `src/components/Admin.tsx`:
+  - Inclusión automática de `createdAt: new Date().toISOString()` al añadir productos.
+  - Ordenamiento descendente en la tabla de gestión de inventario.

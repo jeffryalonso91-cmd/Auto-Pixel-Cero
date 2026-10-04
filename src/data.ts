@@ -42,8 +42,6 @@ export const formatPrice = (price: number | string | undefined | null, symbol: s
   return `${symbol}${formatted}`;
 };
 
-export type ProductStatus = 'Disponible' | 'Contra pedido' | 'Apartado' | 'Vendido' | 'stock' | 'order' | 'reserved' | 'sold';
-
 export type Product = {
   id: string;
   model: string;
@@ -52,51 +50,9 @@ export type Product = {
   battery: string;
   price: number;
   images: string[];
-  status?: ProductStatus;
+  status?: 'Disponible' | 'Vendido';
   comments?: string;
   createdAt?: string | number;
-  color?: string;
-  coverCutoutUrl?: string;
-};
-
-export interface NormalizedProduct extends Product {
-  cleanModel: string;
-  normalizedStatus: 'Disponible' | 'Contra pedido' | 'Apartado' | 'Vendido';
-  statusCode: 'stock' | 'order' | 'reserved' | 'sold';
-}
-
-export const normalizeProduct = (p: Product): NormalizedProduct => {
-  const rawModel = p.model || '';
-  const contraPedidoRegex = /\*+\s*contra\s*pedido\s*\*+/i;
-  const hasContraPedidoInName = contraPedidoRegex.test(rawModel);
-  const cleanModel = rawModel.replace(contraPedidoRegex, '').replace(/\s+/g, ' ').trim();
-
-  let statusCode: 'stock' | 'order' | 'reserved' | 'sold' = 'stock';
-  let normalizedStatus: 'Disponible' | 'Contra pedido' | 'Apartado' | 'Vendido' = 'Disponible';
-
-  const rawStatus = (p.status || '').toString().toLowerCase().trim();
-
-  if (rawStatus === 'vendido' || rawStatus === 'sold') {
-    statusCode = 'sold';
-    normalizedStatus = 'Vendido';
-  } else if (rawStatus === 'apartado' || rawStatus === 'reserved') {
-    statusCode = 'reserved';
-    normalizedStatus = 'Apartado';
-  } else if (rawStatus === 'contra pedido' || rawStatus === 'order' || rawStatus === 'por_encargo' || hasContraPedidoInName) {
-    statusCode = 'order';
-    normalizedStatus = 'Contra pedido';
-  } else {
-    statusCode = 'stock';
-    normalizedStatus = 'Disponible';
-  }
-
-  return {
-    ...p,
-    model: cleanModel || rawModel,
-    cleanModel: cleanModel || rawModel,
-    statusCode,
-    normalizedStatus,
-  };
 };
 
 export const getTimestamp = (p: Product): number => {
@@ -127,10 +83,7 @@ export const PRODUCTS: Product[] = [
     condition: "Excelente",
     battery: "95%",
     price: 460000,
-    images: [
-      "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/iphone-14-pro-finish-select-202209-6-7inch-deeppurple?wid=600&hei=600&fmt=png-alpha",
-      "https://images.unsplash.com/photo-1678652197831-2d180705cd2c?auto=format&fit=crop&q=80&w=1200"
-    ],
+    images: ["https://images.unsplash.com/photo-1678652197831-2d180705cd2c?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
     createdAt: "2026-03-20T10:00:00.000Z",
   },
@@ -141,10 +94,7 @@ export const PRODUCTS: Product[] = [
     condition: "Muy Bueno",
     battery: "91%",
     price: 410000,
-    images: [
-      "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/iphone-14-pro-finish-select-202209-6-1inch-spaceblack?wid=600&hei=600&fmt=png-alpha",
-      "https://images.unsplash.com/photo-1695048064971-d68a98f1ac51?auto=format&fit=crop&q=80&w=1200"
-    ],
+    images: ["https://images.unsplash.com/photo-1695048064971-d68a98f1ac51?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
     createdAt: "2026-03-18T10:00:00.000Z",
   },
@@ -155,10 +105,7 @@ export const PRODUCTS: Product[] = [
     condition: "Excelente",
     battery: "98%",
     price: 310000,
-    images: [
-      "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/iphone-14-finish-select-202209-6-1inch-blue?wid=600&hei=600&fmt=png-alpha",
-      "https://images.unsplash.com/photo-1662993132644-884ec85c7f8a?auto=format&fit=crop&q=80&w=1200"
-    ],
+    images: ["https://images.unsplash.com/photo-1662993132644-884ec85c7f8a?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
     createdAt: "2026-03-15T10:00:00.000Z",
   },
@@ -169,10 +116,7 @@ export const PRODUCTS: Product[] = [
     condition: "Muy Bueno",
     battery: "88%",
     price: 335000,
-    images: [
-      "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/iphone-13-pro-max-sierrablue-select?wid=600&hei=600&fmt=png-alpha",
-      "https://images.unsplash.com/photo-1632661674596-618d8b64d641?auto=format&fit=crop&q=80&w=1200"
-    ],
+    images: ["https://images.unsplash.com/photo-1632661674596-618d8b64d641?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
     createdAt: "2026-03-10T10:00:00.000Z",
   },
@@ -183,10 +127,7 @@ export const PRODUCTS: Product[] = [
     condition: "Bueno",
     battery: "85%",
     price: 285000,
-    images: [
-      "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/iphone-13-midnight-select-2021?wid=600&hei=600&fmt=png-alpha",
-      "https://images.unsplash.com/photo-1632661674596-618d8b64d641?auto=format&fit=crop&q=80&w=1200"
-    ],
+    images: ["https://images.unsplash.com/photo-1632661674596-618d8b64d641?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
     createdAt: "2026-03-05T10:00:00.000Z",
   },
@@ -197,10 +138,7 @@ export const PRODUCTS: Product[] = [
     condition: "Bueno",
     battery: "82%",
     price: 130000,
-    images: [
-      "https://store.storeimages.cdn-apple.com/4982/as-images.apple.com/is/iphone11-black-select-2019?wid=600&hei=600&fmt=png-alpha",
-      "https://images.unsplash.com/photo-1574856344991-abc31b6caa8e?auto=format&fit=crop&q=80&w=1200"
-    ],
+    images: ["https://images.unsplash.com/photo-1574856344991-abc31b6caa8e?auto=format&fit=crop&q=80&w=1200"],
     status: 'Disponible',
     createdAt: "2026-02-28T10:00:00.000Z",
   }

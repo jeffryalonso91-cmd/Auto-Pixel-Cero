@@ -1,6 +1,6 @@
 {
-  "summary":  "Plan integral de investigación, instrumentación con analyzeAlpha, window.__probarPipelineAlfa, ?debugImg=1, escenario adaptable para fotos aplanadas, eliminación de la barra flotante oscura, apilamiento de botones flotantes (WhatsApp y Subir) y ajuste de alineación de tarjetas.",
-  "updatedAt":  "2026-10-04T19:01:11.366809361Z",
+  "summary":  "Plan de implementación para ordenar los artículos de la tienda por fecha de adición más reciente, mostrando primero los productos disponibles recién ingresados y al final los vendidos, tanto en el catálogo principal como en el panel de administración.",
+  "updatedAt":  "2026-09-27T22:02:10.071017845Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -60,29 +60,23 @@ export default function Header({ onNavigate }: HeaderProps) {
 
         <div className="flex items-center gap-1.5 sm:gap-6 shrink-0">
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-7 text-sm font-medium">
-            <a href="/" onClick={handleHomeClick} className="text-apple-text/80 hover:text-apple-text transition-colors py-1">Inicio</a>
-            <a 
-              href="/#catalog" 
-              onClick={(e) => handleSectionClick(e, '#catalog')} 
-              className="text-apple-text font-semibold relative py-1 after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-black after:rounded-full"
-            >
-              Disponibles
-            </a>
-            <a href="/#servicios" onClick={(e) => handleSectionClick(e, '#servicios')} className="text-apple-text/80 hover:text-apple-text transition-colors py-1">Apartados</a>
-            <a href="/#reviews" onClick={(e) => handleSectionClick(e, '#reviews')} className="text-apple-text/80 hover:text-apple-text transition-colors py-1">Reseñas</a>
-            <a href="/#contact" onClick={(e) => handleSectionClick(e, '#contact')} className="text-apple-text/80 hover:text-apple-text transition-colors py-1">Contacto</a>
+          <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+            <a href="/" onClick={handleHomeClick} className="text-apple-text hover:text-apple-blue transition-colors">Inicio</a>
+            <a href="/#catalog" onClick={(e) => handleSectionClick(e, '#catalog')} className="text-apple-text hover:text-apple-blue transition-colors">Disponibles</a>
+            <a href="/#servicios" onClick={(e) => handleSectionClick(e, '#servicios')} className="text-apple-text hover:text-apple-blue transition-colors">Apartados</a>
+            <a href="/#reviews" onClick={(e) => handleSectionClick(e, '#reviews')} className="text-apple-text hover:text-apple-blue transition-colors">Reseñas</a>
+            <a href="/#contact" onClick={(e) => handleSectionClick(e, '#contact')} className="text-apple-text hover:text-apple-blue transition-colors">Contacto</a>
           </nav>
           
-          <div className="h-4 w-px bg-gray-200 hidden md:block" />
+          <div className="h-4 w-px bg-gray-300/80 hidden md:block" />
           
           {/* Social Links */}
-          <SocialLinks config={config} variant="header" size={18} />
+          <SocialLinks config={config} variant="header" size={17} />
 
-          {/* Mobile Menu Button matching reference screenshot */}
+          {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(prev => !prev)}
-            className="md:hidden w-10 h-10 rounded-xl bg-gray-100/90 flex items-center justify-center text-apple-text hover:bg-gray-200 active:scale-95 transition-all focus:outline-none ml-2"
+            className="md:hidden w-8 h-8 rounded-full flex items-center justify-center text-apple-text hover:bg-black/5 active:scale-95 transition-all focus:outline-none ml-1"
             aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
           >
             {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
