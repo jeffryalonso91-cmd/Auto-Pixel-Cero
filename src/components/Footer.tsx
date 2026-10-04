@@ -22,7 +22,7 @@ export default function Footer({ onNavigate }: FooterProps) {
   };
 
   return (
-    <footer id="contact" className="bg-apple-bg pt-20 pb-10 px-6 border-t border-gray-200">
+    <footer id="contact" className="bg-apple-bg pt-20 pb-24 md:pb-28 px-6 border-t border-gray-200">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start gap-10 mb-16">
         <div>
           <h2 className="text-xl font-semibold tracking-tight mb-4">{config.storeName}</h2>

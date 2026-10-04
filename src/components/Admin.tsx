@@ -4,7 +4,8 @@ import { supabase } from '../supabase';
 import { db } from '../firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { Product, formatPrice, normalizePrice, sortProducts } from '../data';
-import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload, Key, ShieldCheck, RefreshCw, Instagram, Facebook } from 'lucide-react';
+import { analyzeAlpha, initPipelineTestHelper } from '../utils/analyzeAlpha';
+import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload, Key, ShieldCheck, RefreshCw, Instagram, Facebook, AlertTriangle } from 'lucide-react';
 import { TikTokSvg } from './SocialIcons';
 
 
@@ -20,6 +21,41 @@ async function hashPassword(password: string) {
  * Produces crisp 1200px images with 78% quality (~70KB-110KB per photo)
  * Saves instantly to cloud databases with zero delay and avoids network bottlenecks.
  */
+export const checkImageOpaqueCorners = (src: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (!src) return resolve(false);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 16;
+        canvas.height = 16;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(false);
+
+        ctx.drawImage(img, 0, 0, 16, 16);
+        const imgData = ctx.getImageData(0, 0, 16, 16).data;
+
+        // Corners in 16x16: (0,0), (15,0), (0,15), (15,15)
+        const cornerIndices = [
+          0,
+          15 * 4,
+          (15 * 16) * 4,
+          (15 * 16 + 15) * 4,
+        ];
+
+        const allOpaque = cornerIndices.every(idx => imgData[idx + 3] === 255);
+        resolve(allOpaque);
+      } catch (err) {
+        resolve(false);
+      }
+    };
+    img.onerror = () => resolve(false);
+    img.src = src;
+  });
+};
+
 const processProductImageHD = (file: File): Promise<string> => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -34,7 +70,7 @@ const processProductImageHD = (file: File): Promise<string> => {
       img.onload = () => {
         const width = img.naturalWidth || img.width;
         const height = img.naturalHeight || img.height;
-        const maxDim = 1200; // Ultra crisp on Retina while remaining under 100KB
+        const maxDim = 1600; // Resize to max 1600px on longest side
 
         let targetWidth = width;
         let targetHeight = height;
@@ -49,10 +85,16 @@ const processProductImageHD = (file: File): Promise<string> => {
           }
         }
 
+        const isPngOrWebp = 
+          file.type === 'image/png' || 
+          file.type === 'image/webp' || 
+          file.type === 'image/x-png' || 
+          /\.(png|webp)$/i.test(file.name);
+
         const canvas = document.createElement('canvas');
         canvas.width = targetWidth;
         canvas.height = targetHeight;
-        const ctx = canvas.getContext('2d', { alpha: false });
+        const ctx = canvas.getContext('2d', { alpha: true });
         if (!ctx) {
           resolve(result);
           return;
@@ -61,13 +103,24 @@ const processProductImageHD = (file: File): Promise<string> => {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 
-        // Clean white background in case of transparent edges
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, targetWidth, targetHeight);
+        // NEVER paint a background fill! Keep alpha channel pristine!
         ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
-        const hdDataUrl = canvas.toDataURL('image/jpeg', 0.78);
-        resolve(hdDataUrl);
+        let outputUrl = '';
+        if (isPngOrWebp) {
+          try {
+            outputUrl = canvas.toDataURL('image/webp', 0.9);
+            if (!outputUrl.startsWith('data:image/webp')) {
+              outputUrl = canvas.toDataURL('image/png');
+            }
+          } catch {
+            outputUrl = canvas.toDataURL('image/png');
+          }
+        } else {
+          outputUrl = canvas.toDataURL('image/jpeg', 0.88);
+        }
+
+        resolve(outputUrl || result);
       };
       img.onerror = () => resolve(result);
       img.src = result;
@@ -76,6 +129,52 @@ const processProductImageHD = (file: File): Promise<string> => {
     reader.readAsDataURL(file);
   });
 };
+
+function AdminImagePreviewItem({ img, index, onRemove }: { key?: React.Key; img: string; index: number; onRemove: () => void }) {
+  const [isOpaque, setIsOpaque] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    checkImageOpaqueCorners(img).then((opaque) => {
+      if (isMounted) setIsOpaque(opaque);
+    });
+    return () => { isMounted = false; };
+  }, [img]);
+
+  return (
+    <div className="flex flex-col gap-1.5 max-w-[200px]">
+      <div 
+        className="relative w-20 h-20 rounded-2xl overflow-hidden border border-gray-200 shadow-xs flex items-center justify-center group"
+        style={{
+          backgroundImage: 'linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)',
+          backgroundSize: '12px 12px',
+          backgroundPosition: '0 0, 0 6px, 6px -6px, -6px 0px',
+        }}
+      >
+        <img src={img} alt={`Preview ${index + 1}`} className="max-w-full max-h-full object-contain p-1" />
+        <button 
+          type="button" 
+          onClick={onRemove}
+          className="absolute top-1 right-1 bg-white/90 hover:bg-red-500 hover:text-white rounded-full p-1 shadow-xs text-red-500 transition-colors"
+          title="Eliminar foto"
+        >
+          <X size={13} />
+        </button>
+        {index === 0 && (
+          <span className="absolute bottom-1 left-1 bg-black/75 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur-xs">
+            Portada
+          </span>
+        )}
+      </div>
+      {isOpaque && index === 0 && (
+        <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 leading-tight flex items-start gap-1">
+          <AlertTriangle size={13} className="shrink-0 text-amber-600 relative top-0.5" />
+          <span>Esta foto tiene fondo. Sube un PNG con el teléfono recortado para que se vea flotando.</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Safeguard for oversized legacy base64 strings (> 250KB) to prevent database timeouts
 const optimizeBase64ImageIfNeeded = async (dataUrl: string): Promise<string> => {
@@ -179,6 +278,9 @@ export default function Admin({
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
+  useEffect(() => {
+    initPipelineTestHelper(processProductImageHD);
+  }, []);
 
   const [editing, setEditing] = useState<Product | null>(null);
   const [editingImages, setEditingImages] = useState<string[]>([]);
@@ -890,7 +992,9 @@ export default function Admin({
                 <div>
                   <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Estado</label>
                   <select name="status" defaultValue={editing.status || 'Disponible'} className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all">
-                    <option value="Disponible">Disponible</option>
+                    <option value="Disponible">Disponible (En Stock)</option>
+                    <option value="Contra pedido">Contra pedido (Por encargo)</option>
+                    <option value="Apartado">Apartado (Reservado)</option>
                     <option value="Vendido">Vendido</option>
                   </select>
                 </div>
@@ -913,16 +1017,12 @@ export default function Admin({
                   {editingImages.length > 0 && (
                     <div className="flex flex-wrap gap-3 mb-4">
                       {editingImages.map((img, i) => (
-                        <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
-                          <img src={img} alt="Preview" className="w-full h-full object-cover" />
-                          <button 
-                            type="button" 
-                            onClick={() => setEditingImages(editingImages.filter((_, idx) => idx !== i))}
-                            className="absolute top-1 right-1 bg-white rounded-full p-1 shadow-sm text-red-500 hover:bg-red-50"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
+                        <AdminImagePreviewItem 
+                          key={i}
+                          img={img}
+                          index={i}
+                          onRemove={() => setEditingImages(editingImages.filter((_, idx) => idx !== i))}
+                        />
                       ))}
                     </div>
                   )}
@@ -952,7 +1052,48 @@ export default function Admin({
                           const files = Array.from(e.target.files) as File[];
                           try {
                             const newImages = await Promise.all(
-                              files.map(file => processProductImageHD(file))
+                              files.map(async (file) => {
+                                const origAnalysis = await analyzeAlpha(file);
+                                console.log(`[IMG Etapa A: Selección de Archivo]`, {
+                                  nombre: file.name,
+                                  tipo: file.type,
+                                  bytes: file.size,
+                                  porcentajeTransparencia: `${origAnalysis.transparentPixelPercent}%`,
+                                  alfaEsquinas: origAnalysis.cornerAlphas,
+                                });
+
+                                const processed = await processProductImageHD(file);
+
+                                const procAnalysis = await analyzeAlpha(processed);
+                                console.log(`[IMG Etapa B: Procesamiento Navegador]`, {
+                                  tipoSalida: procAnalysis.contentType,
+                                  longitudBase64: processed.length,
+                                  porcentajeTransparencia: `${procAnalysis.transparentPixelPercent}%`,
+                                  alfaEsquinas: procAnalysis.cornerAlphas,
+                                });
+
+                                const survived = procAnalysis.transparentPixelPercent > 0 || !origAnalysis.isAllCornersOpaque;
+
+                                console.table({
+                                  'Etapa A (Original)': {
+                                    Tipo: file.type,
+                                    Tamaño: `${Math.round(file.size / 1024)} KB`,
+                                    Transparencia: `${origAnalysis.transparentPixelPercent}%`,
+                                  },
+                                  'Etapa B (Procesado)': {
+                                    Tipo: procAnalysis.contentType,
+                                    Tamaño: `${Math.round(processed.length / 1024)} KB base64`,
+                                    Transparencia: `${procAnalysis.transparentPixelPercent}%`,
+                                  },
+                                  'Culpable / Diagnóstico': {
+                                    Tipo: procAnalysis.contentType,
+                                    Tamaño: 'Conservado',
+                                    Transparencia: survived ? 'Intacto (Conserva Alfa)' : 'Archivo original venía opaco desde origen',
+                                  },
+                                });
+
+                                return processed;
+                              })
                             );
                             const validImages = newImages.filter(Boolean);
                             setEditingImages(prev => [...prev, ...validImages]);

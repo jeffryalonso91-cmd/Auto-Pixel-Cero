@@ -22,6 +22,7 @@ const Admin = lazy(() => import('./components/Admin'));
 import Reviews from './components/Reviews';
 import PopupBanner from './components/PopupBanner';
 import ScrollToTop from './components/ScrollToTop';
+import FloatingWhatsApp from './components/FloatingWhatsApp';
 import { PRODUCTS, Product, CONFIG, normalizePrice } from './data';
 
 export const ConfigContext = createContext(CONFIG);
@@ -432,6 +433,7 @@ export default function App() {
         <Footer onNavigate={navigateTo} />
         <PopupBanner />
         <ScrollToTop />
+        <FloatingWhatsApp />
       </div>
     </ConfigContext.Provider>
   );

@@ -2,16 +2,27 @@
 
 @theme {
   --color-apple-bg: #F5F5F7;
-  --color-apple-text: #1D1D1F;
+  --color-apple-text: #14131A;
   --color-apple-blue: #0071E3;
   --color-apple-blue-hover: #0077ED;
-  --color-apple-gray: #86868B;
+  --color-apple-gray: #62606E;
   --color-apple-card: #FFFFFF;
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --color-go: #1FA855;
+  --color-go-hover: #179347;
+  --font-display: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif;
+  --font-sans: 'DM Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 body {
   @apply bg-apple-bg text-apple-text font-sans antialiased;
+}
+
+.font-display {
+  font-family: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif;
+}
+
+.font-body {
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
 }
 
 .hide-scrollbar {

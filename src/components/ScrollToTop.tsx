@@ -42,7 +42,7 @@ export default function ScrollToTop() {
           transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           whileHover={{ scale: 1.08, y: -2 }}
           whileTap={{ scale: 0.92 }}
-          className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-40 p-3.5 sm:p-4 rounded-full bg-white/95 text-apple-text hover:text-apple-blue shadow-[0_10px_35px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_40px_rgba(0,0,0,0.22)] border border-black/10 backdrop-blur-md transition-colors flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-apple-blue/50"
+          className="fixed bottom-[84px] right-4 z-40 w-14 h-14 rounded-full bg-white/95 text-apple-text hover:text-apple-blue shadow-[0_10px_35px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_40px_rgba(0,0,0,0.22)] border border-black/10 backdrop-blur-md transition-colors flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-apple-blue/50"
           aria-label="Subir al inicio de la página"
           title="Subir al inicio"
         >

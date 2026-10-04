@@ -13,6 +13,7 @@
   "dependencies": {
     "@google-cloud/firestore": "^9.0.0",
     "@google/genai": "^2.4.0",
+    "@imgly/background-removal": "^1.7.0",
     "@supabase/supabase-js": "^2.112.3",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
@@ -25,6 +26,7 @@
     "localforage": "^1.10.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "onnxruntime-web": "1.21.0",
     "puppeteer": "^25.7.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
