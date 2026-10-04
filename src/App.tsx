@@ -7,6 +7,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { useState, useEffect, createContext, useRef, lazy, Suspense } from 'react';
 import localforage from 'localforage';
 import { supabase } from './supabase';
+import { db } from './firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import Catalog from './components/Catalog';
@@ -51,6 +53,11 @@ const getInitialProducts = (): Product[] => {
     if (cachedComments) {
       try { commentsMap = JSON.parse(cachedComments); } catch (e) {}
     }
+    let timestampsMap: Record<string, string | number> = {};
+    const cachedTimestamps = localStorage.getItem('pixelcero_timestamps_cache');
+    if (cachedTimestamps) {
+      try { timestampsMap = JSON.parse(cachedTimestamps); } catch (e) {}
+    }
     const cached = localStorage.getItem('pixelcero_products_cache');
     if (cached) {
       const parsed = JSON.parse(cached);
@@ -58,7 +65,7 @@ const getInitialProducts = (): Product[] => {
         return parsed.map((p: Product) => ({
           ...p,
           price: normalizePrice(p.price),
-          createdAt: (p as any).created_at || p.createdAt || (p.id && p.id.length > 8 ? Number(p.id) : undefined),
+          createdAt: p.createdAt || (p as any).created_at || timestampsMap[p.id] || (p.id && p.id.length > 8 ? Number(p.id) : undefined),
           comments: p.comments !== undefined && p.comments !== '' ? p.comments : (commentsMap[p.id] || '')
         }));
       }
@@ -86,23 +93,29 @@ export default function App() {
   const [storeConfig, setStoreConfig] = useState(getInitialConfig);
   const [currentRoute, setCurrentRoute] = useState<Route>(getInitialRoute);
   const commentsMapRef = useRef<Record<string, string>>({});
+  const timestampsMapRef = useRef<Record<string, string | number>>({});
 
   useEffect(() => {
     try {
-      const cached = localStorage.getItem('pixelcero_comments_cache');
-      if (cached) {
-        commentsMapRef.current = JSON.parse(cached);
+      const cachedComments = localStorage.getItem('pixelcero_comments_cache');
+      if (cachedComments) {
+        commentsMapRef.current = JSON.parse(cachedComments);
+      }
+      const cachedTimestamps = localStorage.getItem('pixelcero_timestamps_cache');
+      if (cachedTimestamps) {
+        timestampsMapRef.current = JSON.parse(cachedTimestamps);
       }
     } catch (e) {}
   }, []);
 
-  const mergeProductsWithComments = (items: Product[], customMap?: Record<string, string>): Product[] => {
-    const map = customMap || commentsMapRef.current || {};
+  const mergeProductsWithComments = (items: Product[], customComments?: Record<string, string>, customTimestamps?: Record<string, string | number>): Product[] => {
+    const cMap = customComments || commentsMapRef.current || {};
+    const tMap = customTimestamps || timestampsMapRef.current || {};
     return items.map(p => ({
       ...p,
       price: normalizePrice(p.price),
-      createdAt: (p as any).created_at || p.createdAt || (p.id && p.id.length > 8 ? Number(p.id) : undefined),
-      comments: p.comments !== undefined && p.comments !== '' ? p.comments : (map[p.id] || '')
+      createdAt: p.createdAt || (p as any).created_at || tMap[p.id] || (p.id && p.id.length > 8 ? Number(p.id) : undefined),
+      comments: p.comments !== undefined && p.comments !== '' ? p.comments : (cMap[p.id] || '')
     }));
   };
 
@@ -141,7 +154,7 @@ export default function App() {
         setProducts(cached.map(p => ({
           ...p,
           price: normalizePrice(p.price),
-          createdAt: (p as any).created_at || p.createdAt || (p.id && p.id.length > 8 ? Number(p.id) : undefined)
+          createdAt: p.createdAt || (p as any).created_at || (p.id && p.id.length > 8 ? Number(p.id) : undefined)
         })));
       }
     }).catch(() => {});
@@ -164,22 +177,34 @@ export default function App() {
     configSubscription = supabase
       .channel('config_changes_' + Math.random().toString(36).substring(7))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_config' }, () => {
-         supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon', 'socials', 'product_comments']).then(({ data }) => {
+         supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon', 'socials', 'product_comments', 'product_timestamps']).then(({ data }) => {
            if (data && isMounted) {
              const storeData = data.find((d: any) => d.id === 'store') || {};
              const heroData = data.find((d: any) => d.id === 'hero') || {};
              const faviconData = data.find((d: any) => d.id === 'favicon') || {};
              const socialsData = data.find((d: any) => d.id === 'socials') || {};
              const commentsData = data.find((d: any) => d.id === 'product_comments');
+             const timestampsData = data.find((d: any) => d.id === 'product_timestamps');
 
+             let updatedComments = commentsMapRef.current;
              if (commentsData?.store_name) {
                try {
-                 const commentsMap = JSON.parse(commentsData.store_name);
-                 commentsMapRef.current = commentsMap;
-                 try { localStorage.setItem('pixelcero_comments_cache', JSON.stringify(commentsMap)); } catch (e) {}
-                 setProducts(prev => mergeProductsWithComments(prev, commentsMap));
+                 updatedComments = JSON.parse(commentsData.store_name);
+                 commentsMapRef.current = updatedComments;
+                 try { localStorage.setItem('pixelcero_comments_cache', JSON.stringify(updatedComments)); } catch (e) {}
                } catch (e) {}
              }
+
+             let updatedTimestamps = timestampsMapRef.current;
+             if (timestampsData?.store_name) {
+               try {
+                 updatedTimestamps = JSON.parse(timestampsData.store_name);
+                 timestampsMapRef.current = updatedTimestamps;
+                 try { localStorage.setItem('pixelcero_timestamps_cache', JSON.stringify(updatedTimestamps)); } catch (e) {}
+               } catch (e) {}
+             }
+
+             setProducts(prev => mergeProductsWithComments(prev, updatedComments, updatedTimestamps));
 
              let parsedSocials: any = {};
              if (socialsData.store_name) {
@@ -225,7 +250,7 @@ export default function App() {
       }
     });
 
-    supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon', 'socials', 'product_comments']).then(({ data, error }) => {
+    supabase.from('store_config').select('*').in('id', ['store', 'hero', 'favicon', 'socials', 'product_comments', 'product_timestamps']).then(({ data, error }) => {
       if (error) {
         console.warn('Network notice fetching store_config:', error);
       } else if (data && isMounted) {
@@ -234,15 +259,27 @@ export default function App() {
          const faviconData = data.find((d: any) => d.id === 'favicon') || {};
          const socialsData = data.find((d: any) => d.id === 'socials') || {};
          const commentsData = data.find((d: any) => d.id === 'product_comments');
+         const timestampsData = data.find((d: any) => d.id === 'product_timestamps');
 
+         let updatedComments = commentsMapRef.current;
          if (commentsData?.store_name) {
            try {
-             const commentsMap = JSON.parse(commentsData.store_name);
-             commentsMapRef.current = commentsMap;
-             try { localStorage.setItem('pixelcero_comments_cache', JSON.stringify(commentsMap)); } catch (e) {}
-             setProducts(prev => mergeProductsWithComments(prev, commentsMap));
+             updatedComments = JSON.parse(commentsData.store_name);
+             commentsMapRef.current = updatedComments;
+             try { localStorage.setItem('pixelcero_comments_cache', JSON.stringify(updatedComments)); } catch (e) {}
            } catch (e) {}
          }
+
+         let updatedTimestamps = timestampsMapRef.current;
+         if (timestampsData?.store_name) {
+           try {
+             updatedTimestamps = JSON.parse(timestampsData.store_name);
+             timestampsMapRef.current = updatedTimestamps;
+             try { localStorage.setItem('pixelcero_timestamps_cache', JSON.stringify(updatedTimestamps)); } catch (e) {}
+           } catch (e) {}
+         }
+
+         setProducts(prev => mergeProductsWithComments(prev, updatedComments, updatedTimestamps));
 
          let parsedSocials: any = {};
          if (socialsData.store_name) {
@@ -273,11 +310,43 @@ export default function App() {
     });
 
 
+    // Firestore Realtime listener (multi-database redundancy)
+    let unsubscribeFirestore: any;
+    try {
+      unsubscribeFirestore = onSnapshot(collection(db, 'products'), (snapshot) => {
+        if (!snapshot.empty && isMounted) {
+          const fbProducts: Product[] = [];
+          snapshot.forEach(docSnap => {
+            const d = docSnap.data() as Product;
+            if (d && d.id) {
+              fbProducts.push(d);
+            }
+          });
+          if (fbProducts.length > 0) {
+            setProducts(prev => {
+              const existingMap = new Map(prev.map(p => [p.id, p]));
+              fbProducts.forEach(fp => {
+                existingMap.set(fp.id, {
+                  ...fp,
+                  price: normalizePrice(fp.price),
+                  createdAt: fp.createdAt || (fp as any).created_at || (fp.id && fp.id.length > 8 ? Number(fp.id) : undefined)
+                });
+              });
+              const merged = Array.from(existingMap.values());
+              try { localStorage.setItem('pixelcero_products_cache', JSON.stringify(merged)); } catch (e) {}
+              localforage.setItem('pixelcero_products_cache', merged).catch(() => {});
+              return merged;
+            });
+          }
+        }
+      }, () => {});
+    } catch (e) {}
+
     return () => {
       isMounted = false;
-      
-        if (productsSubscription) supabase.removeChannel(productsSubscription);
-        if (configSubscription) supabase.removeChannel(configSubscription);
+      if (productsSubscription) supabase.removeChannel(productsSubscription);
+      if (configSubscription) supabase.removeChannel(configSubscription);
+      if (unsubscribeFirestore) unsubscribeFirestore();
     };
   }, []);
 
