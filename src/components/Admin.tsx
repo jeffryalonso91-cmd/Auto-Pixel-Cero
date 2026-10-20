@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import localforage from 'localforage';
 import { supabase } from '../supabase';
 import { db } from '../firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { Product, formatPrice, normalizePrice, sortProducts } from '../data';
-import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload, Key, ShieldCheck, RefreshCw, Instagram, Facebook } from 'lucide-react';
+import { analyzeAlpha, initPipelineTestHelper } from '../utils/analyzeAlpha';
+import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload, Key, ShieldCheck, RefreshCw, Instagram, Facebook, AlertTriangle, RotateCcw } from 'lucide-react';
 import { TikTokSvg } from './SocialIcons';
 
 
@@ -20,6 +21,41 @@ async function hashPassword(password: string) {
  * Produces crisp 1200px images with 78% quality (~70KB-110KB per photo)
  * Saves instantly to cloud databases with zero delay and avoids network bottlenecks.
  */
+export const checkImageOpaqueCorners = (src: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (!src) return resolve(false);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 16;
+        canvas.height = 16;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(false);
+
+        ctx.drawImage(img, 0, 0, 16, 16);
+        const imgData = ctx.getImageData(0, 0, 16, 16).data;
+
+        // Corners in 16x16: (0,0), (15,0), (0,15), (15,15)
+        const cornerIndices = [
+          0,
+          15 * 4,
+          (15 * 16) * 4,
+          (15 * 16 + 15) * 4,
+        ];
+
+        const allOpaque = cornerIndices.every(idx => imgData[idx + 3] === 255);
+        resolve(allOpaque);
+      } catch (err) {
+        resolve(false);
+      }
+    };
+    img.onerror = () => resolve(false);
+    img.src = src;
+  });
+};
+
 const processProductImageHD = (file: File): Promise<string> => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -34,7 +70,7 @@ const processProductImageHD = (file: File): Promise<string> => {
       img.onload = () => {
         const width = img.naturalWidth || img.width;
         const height = img.naturalHeight || img.height;
-        const maxDim = 1200; // Ultra crisp on Retina while remaining under 100KB
+        const maxDim = 1600; // Resize to max 1600px on longest side
 
         let targetWidth = width;
         let targetHeight = height;
@@ -49,10 +85,16 @@ const processProductImageHD = (file: File): Promise<string> => {
           }
         }
 
+        const isPngOrWebp = 
+          file.type === 'image/png' || 
+          file.type === 'image/webp' || 
+          file.type === 'image/x-png' || 
+          /\.(png|webp)$/i.test(file.name);
+
         const canvas = document.createElement('canvas');
         canvas.width = targetWidth;
         canvas.height = targetHeight;
-        const ctx = canvas.getContext('2d', { alpha: false });
+        const ctx = canvas.getContext('2d', { alpha: true });
         if (!ctx) {
           resolve(result);
           return;
@@ -61,13 +103,24 @@ const processProductImageHD = (file: File): Promise<string> => {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 
-        // Clean white background in case of transparent edges
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, targetWidth, targetHeight);
+        // NEVER paint a background fill! Keep alpha channel pristine!
         ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
-        const hdDataUrl = canvas.toDataURL('image/jpeg', 0.78);
-        resolve(hdDataUrl);
+        let outputUrl = '';
+        if (isPngOrWebp) {
+          try {
+            outputUrl = canvas.toDataURL('image/webp', 0.9);
+            if (!outputUrl.startsWith('data:image/webp')) {
+              outputUrl = canvas.toDataURL('image/png');
+            }
+          } catch {
+            outputUrl = canvas.toDataURL('image/png');
+          }
+        } else {
+          outputUrl = canvas.toDataURL('image/jpeg', 0.88);
+        }
+
+        resolve(outputUrl || result);
       };
       img.onerror = () => resolve(result);
       img.src = result;
@@ -76,6 +129,52 @@ const processProductImageHD = (file: File): Promise<string> => {
     reader.readAsDataURL(file);
   });
 };
+
+function AdminImagePreviewItem({ img, index, onRemove }: { key?: React.Key; img: string; index: number; onRemove: () => void }) {
+  const [isOpaque, setIsOpaque] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    checkImageOpaqueCorners(img).then((opaque) => {
+      if (isMounted) setIsOpaque(opaque);
+    });
+    return () => { isMounted = false; };
+  }, [img]);
+
+  return (
+    <div className="flex flex-col gap-1.5 max-w-[200px]">
+      <div 
+        className="relative w-20 h-20 rounded-2xl overflow-hidden border border-gray-200 shadow-xs flex items-center justify-center group"
+        style={{
+          backgroundImage: 'linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)',
+          backgroundSize: '12px 12px',
+          backgroundPosition: '0 0, 0 6px, 6px -6px, -6px 0px',
+        }}
+      >
+        <img src={img} alt={`Preview ${index + 1}`} className="max-w-full max-h-full object-contain p-1" />
+        <button 
+          type="button" 
+          onClick={onRemove}
+          className="absolute top-1 right-1 bg-white/90 hover:bg-red-500 hover:text-white rounded-full p-1 shadow-xs text-red-500 transition-colors"
+          title="Eliminar foto"
+        >
+          <X size={13} />
+        </button>
+        {index === 0 && (
+          <span className="absolute bottom-1 left-1 bg-black/75 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur-xs">
+            Portada
+          </span>
+        )}
+      </div>
+      {isOpaque && index === 0 && (
+        <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 leading-tight flex items-start gap-1">
+          <AlertTriangle size={13} className="shrink-0 text-amber-600 relative top-0.5" />
+          <span>Esta foto tiene fondo. Sube un PNG con el teléfono recortado para que se vea flotando.</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Safeguard for oversized legacy base64 strings (> 250KB) to prevent database timeouts
 const optimizeBase64ImageIfNeeded = async (dataUrl: string): Promise<string> => {
@@ -179,6 +278,9 @@ export default function Admin({
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
+  useEffect(() => {
+    initPipelineTestHelper(processProductImageHD);
+  }, []);
 
   const [editing, setEditing] = useState<Product | null>(null);
   const [editingImages, setEditingImages] = useState<string[]>([]);
@@ -187,6 +289,105 @@ export default function Admin({
   const [saveProductError, setSaveProductError] = useState<string | null>(null);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // Estado para redacción asistida por IA en la ficha del artículo
+  const productFormRef = useRef<HTMLFormElement>(null);
+  const [descriptionText, setDescriptionText] = useState('');
+  const [originalNotes, setOriginalNotes] = useState<string | null>(null);
+  const [aiTone, setAiTone] = useState<'cercano' | 'experiencia' | 'oportunidad' | 'directo'>('cercano');
+  const [aiLength, setAiLength] = useState<'breve' | 'parrafo' | 'puntos'>('breve');
+  const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [aiDescriptionError, setAiDescriptionError] = useState<string | null>(null);
+  const [hasGeneratedWithAi, setHasGeneratedWithAi] = useState(false);
+
+  useEffect(() => {
+    if (editing) {
+      const initialComments = editing.comments || '';
+      setDescriptionText(initialComments);
+      setOriginalNotes(initialComments.trim() ? initialComments.trim() : null);
+      setAiDescriptionError(null);
+      setHasGeneratedWithAi(false);
+    } else {
+      setDescriptionText('');
+      setOriginalNotes(null);
+      setAiDescriptionError(null);
+      setHasGeneratedWithAi(false);
+    }
+  }, [editing]);
+
+  const handleGenerateAiDescription = async () => {
+    if (!productFormRef.current) return;
+    setAiDescriptionError(null);
+
+    const formData = new FormData(productFormRef.current);
+    const model = ((formData.get('model') as string) || '').trim();
+    const price = ((formData.get('price') as string) || '').trim();
+    const storage = ((formData.get('storage') as string) || '').trim();
+    const condition = ((formData.get('condition') as string) || '').trim();
+    const battery = ((formData.get('battery') as string) || '').trim();
+    const status = ((formData.get('status') as string) || 'Disponible').trim();
+
+    if (!model) {
+      setAiDescriptionError('Ingresa primero el modelo del artículo arriba para redactar la descripción.');
+      return;
+    }
+
+    // Si aún no se había generado con IA en esta sesión, cualquier texto actual en el campo
+    // se toma como los apuntes previos del administrador y se respalda para futuras regeneraciones
+    let notesToUse = '';
+    if (!hasGeneratedWithAi) {
+      notesToUse = descriptionText.trim();
+      setOriginalNotes(notesToUse || null);
+    } else {
+      notesToUse = originalNotes || '';
+    }
+
+    setGeneratingDescription(true);
+    try {
+      const response = await fetch('/api/generate-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          price,
+          currencySymbol: storeConfig?.currencySymbol || '₡',
+          storage,
+          condition,
+          battery,
+          status,
+          notes: notesToUse,
+          tone: aiTone,
+          length: aiLength,
+          storeName: storeConfig?.storeName || 'Pixel Cero',
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        setAiDescriptionError(
+          data.error || 'No se pudo generar la descripción en este momento. Intenta de nuevo.'
+        );
+        return;
+      }
+
+      if (data.description) {
+        setDescriptionText(data.description);
+        setHasGeneratedWithAi(true);
+      }
+    } catch (err) {
+      console.error('Error calling /api/generate-description:', err);
+      setAiDescriptionError('Error de conexión al generar la descripción. Verifica tu red e intenta de nuevo.');
+    } finally {
+      setGeneratingDescription(false);
+    }
+  };
+
+  const handleRestoreOriginalNotes = () => {
+    setDescriptionText(originalNotes || '');
+    setHasGeneratedWithAi(false);
+    setAiDescriptionError(null);
+  };
+
   const [activeTab, setActiveTab] = useState<'inventory' | 'config' | 'users' | 'reviews'>('inventory');
   const [reviews, setReviews] = useState<any[]>([]);
   const [deleteReviewConfirm, setDeleteReviewConfirm] = useState<any | null>(null);
@@ -500,7 +701,7 @@ export default function Admin({
         battery: (formData.get('battery') as string)?.trim() || '100%',
         price: Number(formData.get('price')) || 0,
         status: (formData.get('status') as 'Disponible' | 'Vendido') || 'Disponible',
-        comments: (formData.get('comments') as string)?.trim() || '',
+        comments: descriptionText.trim(),
         images: sanitizedImages,
         createdAt: editing?.createdAt || new Date().toISOString(),
       };
@@ -862,7 +1063,7 @@ export default function Admin({
                 {isNew ? 'Nuevo Artículo' : 'Editar Artículo'}
               </h2>
 
-              <form onSubmit={handleSave} className="space-y-5">
+              <form ref={productFormRef} onSubmit={handleSave} className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Modelo</label>
                   <input required name="model" defaultValue={editing.model} className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all placeholder:text-gray-400" placeholder="Ej: iPhone 13 Pro" />
@@ -890,21 +1091,120 @@ export default function Admin({
                 <div>
                   <label className="block text-sm font-medium text-apple-text mb-2 ml-1">Estado</label>
                   <select name="status" defaultValue={editing.status || 'Disponible'} className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all">
-                    <option value="Disponible">Disponible</option>
+                    <option value="Disponible">Disponible (En Stock)</option>
+                    <option value="Contra pedido">Contra pedido (Por encargo)</option>
+                    <option value="Apartado">Apartado (Reservado)</option>
                     <option value="Vendido">Vendido</option>
                   </select>
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-2 ml-1">
-                    <label className="block text-sm font-medium text-apple-text">Comentarios / Observaciones (Opcional)</label>
-                    <span className="text-xs text-apple-gray">Se desplegará al hacer clic en las especificaciones</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2 ml-1">
+                    <label className="block text-sm font-medium text-apple-text">Descripción / Comentarios de Venta</label>
+                    <span className="text-xs text-apple-gray">Editable manualmente o redactado con tus datos</span>
                   </div>
+
+                  {/* Barra de configuración y generación con IA */}
+                  <div className="p-3.5 mb-3 bg-apple-bg/80 rounded-2xl border border-gray-200/80 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-apple-text">
+                        Redacción humana basada en la ficha {originalNotes && hasGeneratedWithAi ? 'y tus apuntes previos' : ''}
+                      </span>
+                      {hasGeneratedWithAi && (
+                        <button
+                          type="button"
+                          onClick={handleRestoreOriginalNotes}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-apple-gray hover:text-apple-text transition-colors whitespace-nowrap shrink-0"
+                          title="Volver a los apuntes originales escritos antes de generar"
+                        >
+                          <RotateCcw size={12} />
+                          <span>{originalNotes ? 'Restaurar apuntes' : 'Limpiar texto'}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-medium text-apple-gray mb-1 ml-0.5">
+                          Enfoque y tono
+                        </label>
+                        <select
+                          value={aiTone}
+                          onChange={(e) => setAiTone(e.target.value as any)}
+                          disabled={generatingDescription}
+                          className="w-full px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs text-apple-text focus:border-apple-blue outline-none transition-all"
+                        >
+                          <option value="cercano">Asesor cercano y confiable</option>
+                          <option value="experiencia">Experiencia de uso diario</option>
+                          <option value="oportunidad">Oportunidad y valor</option>
+                          <option value="directo">Directo y transparente</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-medium text-apple-gray mb-1 ml-0.5">
+                          Extensión y formato
+                        </label>
+                        <select
+                          value={aiLength}
+                          onChange={(e) => setAiLength(e.target.value as any)}
+                          disabled={generatingDescription}
+                          className="w-full px-3 py-2 bg-white rounded-xl border border-gray-200 text-xs text-apple-text focus:border-apple-blue outline-none transition-all"
+                        >
+                          <option value="breve">Breve y fluida (2 a 3 líneas)</option>
+                          <option value="parrafo">Párrafo completo</option>
+                          <option value="puntos">Frase + puntos clave</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-0.5">
+                      <p className="text-[11px] text-apple-gray leading-snug">
+                        {hasGeneratedWithAi
+                          ? 'Puedes editar el texto abajo libremente o cambiar el enfoque y volver a generar.'
+                          : 'Opcional: escribe apuntes rápidos abajo (ej. "incluye caja, único dueño") y la IA los integrará.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleGenerateAiDescription}
+                        disabled={generatingDescription}
+                        className={`px-4 py-2 bg-apple-blue text-white rounded-xl text-xs font-medium hover:bg-apple-blue-hover transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 shadow-xs ${
+                          generatingDescription ? 'opacity-70 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        {generatingDescription ? (
+                          <>
+                            <RefreshCw size={13} className="animate-spin" />
+                            <span>Redactando...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw size={13} />
+                            <span>{hasGeneratedWithAi ? 'Volver a generar' : 'Generar descripción'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {aiDescriptionError && (
+                      <p className="text-xs text-red-600 font-medium pt-1">
+                        {aiDescriptionError}
+                      </p>
+                    )}
+                  </div>
+
                   <textarea 
                     name="comments" 
-                    defaultValue={editing.comments || ''} 
-                    rows={3}
-                    className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all placeholder:text-gray-400 text-sm resize-none" 
-                    placeholder="Ej: Incluye cable original tipo C, sin detalles en pantalla ni marcos, batería 100% original nunca cambiada..." 
+                    value={descriptionText}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDescriptionText(val);
+                      if (!hasGeneratedWithAi) {
+                        setOriginalNotes(val.trim() ? val.trim() : null);
+                      }
+                    }}
+                    rows={4}
+                    className="w-full p-4 bg-apple-bg rounded-2xl border-2 border-transparent focus:border-apple-blue focus:bg-white outline-none transition-all placeholder:text-gray-400 text-sm resize-y" 
+                    placeholder="Escribe tus propios apuntes rápidos (ej: incluye cable original, batería original, cero rayones) y presiona 'Generar descripción', o redacta y edita manualmente aquí..." 
                   />
                 </div>
                 <div>
@@ -913,16 +1213,12 @@ export default function Admin({
                   {editingImages.length > 0 && (
                     <div className="flex flex-wrap gap-3 mb-4">
                       {editingImages.map((img, i) => (
-                        <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
-                          <img src={img} alt="Preview" className="w-full h-full object-cover" />
-                          <button 
-                            type="button" 
-                            onClick={() => setEditingImages(editingImages.filter((_, idx) => idx !== i))}
-                            className="absolute top-1 right-1 bg-white rounded-full p-1 shadow-sm text-red-500 hover:bg-red-50"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
+                        <AdminImagePreviewItem 
+                          key={i}
+                          img={img}
+                          index={i}
+                          onRemove={() => setEditingImages(editingImages.filter((_, idx) => idx !== i))}
+                        />
                       ))}
                     </div>
                   )}
@@ -952,7 +1248,48 @@ export default function Admin({
                           const files = Array.from(e.target.files) as File[];
                           try {
                             const newImages = await Promise.all(
-                              files.map(file => processProductImageHD(file))
+                              files.map(async (file) => {
+                                const origAnalysis = await analyzeAlpha(file);
+                                console.log(`[IMG Etapa A: Selección de Archivo]`, {
+                                  nombre: file.name,
+                                  tipo: file.type,
+                                  bytes: file.size,
+                                  porcentajeTransparencia: `${origAnalysis.transparentPixelPercent}%`,
+                                  alfaEsquinas: origAnalysis.cornerAlphas,
+                                });
+
+                                const processed = await processProductImageHD(file);
+
+                                const procAnalysis = await analyzeAlpha(processed);
+                                console.log(`[IMG Etapa B: Procesamiento Navegador]`, {
+                                  tipoSalida: procAnalysis.contentType,
+                                  longitudBase64: processed.length,
+                                  porcentajeTransparencia: `${procAnalysis.transparentPixelPercent}%`,
+                                  alfaEsquinas: procAnalysis.cornerAlphas,
+                                });
+
+                                const survived = procAnalysis.transparentPixelPercent > 0 || !origAnalysis.isAllCornersOpaque;
+
+                                console.table({
+                                  'Etapa A (Original)': {
+                                    Tipo: file.type,
+                                    Tamaño: `${Math.round(file.size / 1024)} KB`,
+                                    Transparencia: `${origAnalysis.transparentPixelPercent}%`,
+                                  },
+                                  'Etapa B (Procesado)': {
+                                    Tipo: procAnalysis.contentType,
+                                    Tamaño: `${Math.round(processed.length / 1024)} KB base64`,
+                                    Transparencia: `${procAnalysis.transparentPixelPercent}%`,
+                                  },
+                                  'Culpable / Diagnóstico': {
+                                    Tipo: procAnalysis.contentType,
+                                    Tamaño: 'Conservado',
+                                    Transparencia: survived ? 'Intacto (Conserva Alfa)' : 'Archivo original venía opaco desde origen',
+                                  },
+                                });
+
+                                return processed;
+                              })
                             );
                             const validImages = newImages.filter(Boolean);
                             setEditingImages(prev => [...prev, ...validImages]);
