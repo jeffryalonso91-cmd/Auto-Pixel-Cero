@@ -62,13 +62,7 @@ export default function Header({ onNavigate }: HeaderProps) {
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-7 text-sm font-medium">
             <a href="/" onClick={handleHomeClick} className="text-apple-text/80 hover:text-apple-text transition-colors py-1">Inicio</a>
-            <a 
-              href="/#catalog" 
-              onClick={(e) => handleSectionClick(e, '#catalog')} 
-              className="text-apple-text font-semibold relative py-1 after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-black after:rounded-full"
-            >
-              Disponibles
-            </a>
+            <a href="/#catalog" onClick={(e) => handleSectionClick(e, '#catalog')} className="text-apple-text/80 hover:text-apple-text transition-colors py-1">Disponibles</a>
             <a href="/#servicios" onClick={(e) => handleSectionClick(e, '#servicios')} className="text-apple-text/80 hover:text-apple-text transition-colors py-1">Apartados</a>
             <a href="/#reviews" onClick={(e) => handleSectionClick(e, '#reviews')} className="text-apple-text/80 hover:text-apple-text transition-colors py-1">Reseñas</a>
             <a href="/#contact" onClick={(e) => handleSectionClick(e, '#contact')} className="text-apple-text/80 hover:text-apple-text transition-colors py-1">Contacto</a>
