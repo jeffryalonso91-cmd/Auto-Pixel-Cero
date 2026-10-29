@@ -358,8 +358,10 @@ export default function App() {
 
   useEffect(() => {
     document.title = storeConfig.storeName || "Pixel Cero";
-    if (storeConfig.logoUrl) {
-      // Standard Favicon
+    // Google Search no indexa favicons con URLs "data:image/...".
+    // Solo actualizamos el href dinámicamente si es una URL pública http(s) o ruta estática,
+    // manteniendo /favicon.png como icono rastreable por Googlebot.
+    if (storeConfig.logoUrl && !storeConfig.logoUrl.startsWith('data:')) {
       let link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
       if (!link) {
         link = document.createElement('link');
@@ -368,7 +370,6 @@ export default function App() {
       }
       link.href = storeConfig.logoUrl;
 
-      // Apple Touch Icon
       let appleLink = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
       if (!appleLink) {
         appleLink = document.createElement('link');
@@ -376,8 +377,7 @@ export default function App() {
         document.head.appendChild(appleLink);
       }
       appleLink.href = storeConfig.logoUrl;
-      
-      // Shortcut Icon (for older browsers)
+
       let shortcutLink = document.querySelector("link[rel='shortcut icon']") as HTMLLinkElement;
       if (!shortcutLink) {
         shortcutLink = document.createElement('link');
