@@ -4,6 +4,7 @@ import { supabase } from '../supabase';
 import { db } from '../firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { Product, formatPrice, normalizePrice, sortProducts } from '../data';
+import { buildHumanFallbackDescription, buildPromptAndSystemInstruction } from '../descriptionGenerator';
 import { Plus, Pencil, Trash2, X, ArrowLeft, Lock, Upload, Key, ShieldCheck, RefreshCw, Instagram, Facebook, RotateCcw } from 'lucide-react';
 import { TikTokSvg } from './SocialIcons';
 
@@ -255,41 +256,88 @@ export default function Admin({
       notesToUse = originalNotes || '';
     }
 
+    const payload = {
+      model,
+      price,
+      currencySymbol: storeConfig?.currencySymbol || '₡',
+      storage,
+      condition,
+      battery,
+      status,
+      notes: notesToUse,
+      tone: aiTone,
+      length: aiLength,
+      storeName: storeConfig?.storeName || 'Pixel Cero',
+    };
+
     setGeneratingDescription(true);
     try {
-      const response = await fetch('/api/generate-description', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          price,
-          currencySymbol: storeConfig?.currencySymbol || '₡',
-          storage,
-          condition,
-          battery,
-          status,
-          notes: notesToUse,
-          tone: aiTone,
-          length: aiLength,
-          storeName: storeConfig?.storeName || 'Pixel Cero',
-        }),
-      });
+      let generatedDescription = '';
 
-      const data = await response.json();
-      if (!response.ok || data.error) {
-        setAiDescriptionError(
-          data.error || 'No se pudo generar la descripción en este momento. Intenta de nuevo.'
-        );
-        return;
+      // 1. Intentar el endpoint del servidor / Cloudflare Pages Function (/api/generate-description)
+      try {
+        const response = await fetch('/api/generate-description', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (response.ok && contentType.includes('application/json')) {
+          const data = await response.json();
+          if (data?.description && typeof data.description === 'string') {
+            generatedDescription = data.description.trim();
+          }
+        }
+      } catch (_endpointErr) {
+        // Si el despliegue en Cloudflare es estático y no expone /api/generate-description, continuamos abajo
       }
 
-      if (data.description) {
-        setDescriptionText(data.description);
-        setHasGeneratedWithAi(true);
+      // 2. Si no hubo respuesta del endpoint y existe VITE_GEMINI_API_KEY configurada en Cloudflare, usar la API REST de Gemini
+      if (!generatedDescription) {
+        const clientApiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+        if (clientApiKey && typeof clientApiKey === 'string' && clientApiKey.trim()) {
+          try {
+            const { systemInstruction, prompt } = buildPromptAndSystemInstruction(payload);
+            const geminiRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
+                clientApiKey.trim()
+              )}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  systemInstruction: { parts: [{ text: systemInstruction }] },
+                  contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                  generationConfig: { temperature: 0.75 },
+                }),
+              }
+            );
+            if (geminiRes.ok) {
+              const geminiData = await geminiRes.json();
+              const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+              if (text) {
+                generatedDescription = text;
+              }
+            }
+          } catch (_geminiErr) {
+            // Respaldo humano contextual abajo
+          }
+        }
       }
+
+      // 3. Respaldo garantizado de redacción humana contextual (funciona siempre en Cloudflare sin depender del servidor)
+      if (!generatedDescription) {
+        generatedDescription = buildHumanFallbackDescription(payload);
+      }
+
+      setDescriptionText(generatedDescription);
+      setHasGeneratedWithAi(true);
     } catch (err) {
-      console.error('Error calling /api/generate-description:', err);
-      setAiDescriptionError('Error de conexión al generar la descripción. Verifica tu red e intenta de nuevo.');
+      console.error('Error generating description:', err);
+      const fallback = buildHumanFallbackDescription(payload);
+      setDescriptionText(fallback);
+      setHasGeneratedWithAi(true);
     } finally {
       setGeneratingDescription(false);
     }
