@@ -4,7 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, createContext, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, createContext, useRef } from 'react';
 import localforage from 'localforage';
 import { supabase } from './supabase';
 import { db } from './firebase';
@@ -18,7 +18,7 @@ import TerminosImportacion from './components/TerminosImportacion';
 import PedidoEspecial from './components/PedidoEspecial';
 import Trust from './components/Trust';
 import Footer from './components/Footer';
-const Admin = lazy(() => import('./components/Admin'));
+import Admin from './components/Admin';
 import Reviews from './components/Reviews';
 import PopupBanner from './components/PopupBanner';
 import ScrollToTop from './components/ScrollToTop';
@@ -391,9 +391,7 @@ export default function App() {
   if (currentRoute === 'admin') {
     return (
       <ErrorBoundary>
-        <Suspense fallback={<div className="min-h-screen bg-apple-bg flex items-center justify-center font-sans text-apple-gray">Cargando Panel...</div>}>
-          <Admin products={products} setProducts={setProducts} storeConfig={storeConfig} setStoreConfig={setStoreConfig} />
-        </Suspense>
+        <Admin products={products} setProducts={setProducts} storeConfig={storeConfig} setStoreConfig={setStoreConfig} />
       </ErrorBoundary>
     );
   }
