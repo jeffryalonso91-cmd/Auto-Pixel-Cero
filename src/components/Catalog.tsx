@@ -422,7 +422,10 @@ function ProductCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(cardRef, { amount: 0.6 });
 
-  const images = product.images && product.images.length > 0 ? product.images : [(product as any).imageUrl];
+  const images = (product.images && product.images.length > 0
+    ? product.images
+    : ((product as any).imageUrl ? [(product as any).imageUrl] : [])
+  ).filter((img): img is string => typeof img === 'string' && img.trim() !== '');
   const displayImages = images.slice(0, 3);
   const hasComments = Boolean(product.comments && product.comments.trim() !== '');
 
@@ -436,11 +439,15 @@ function ProductCard({
       transition={{ duration: 0.6, delay: (index % 3) * 0.1, ease: [0.16, 1, 0.3, 1] }}
     >
       <div
-        className="relative aspect-square bg-apple-bg overflow-hidden cursor-pointer p-6"
-        onClick={() => setActiveGallery(images)}
+        className={`relative aspect-square bg-apple-bg overflow-hidden ${images.length > 0 ? 'cursor-pointer' : ''} p-6`}
+        onClick={() => { if (images.length > 0) setActiveGallery(images); }}
       >
         <div className="relative w-full h-full flex items-center justify-center">
-          {displayImages.map((img, i) => {
+          {displayImages.length === 0 ? (
+            <div className="text-apple-gray/60 text-sm font-medium text-center px-4 select-none">
+              Sin foto
+            </div>
+          ) : displayImages.map((img, i) => {
             const baseTransforms = [
               'scale-95 translate-y-1',
               'scale-90 -rotate-6 -translate-x-4 translate-y-2 opacity-90',
@@ -483,11 +490,11 @@ function ProductCard({
                  Vendido
                </div>
             </div>
-          ) : (
+          ) : images.length > 0 ? (
             <span className="bg-white/95 backdrop-blur-sm text-apple-text text-sm font-medium px-4 py-2 rounded-full shadow-sm">
               Ver galería ({images.length})
             </span>
-          )}
+          ) : null}
         </div>
       </div>
       

@@ -145,12 +145,22 @@ export default function App() {
     let productsSubscription: any;
     let configSubscription: any;
     let isMounted = true;
+    let hasLoadedFromSupabase = false;
+
+    const persistProductsCache = (items: Product[]) => {
+      try {
+        localStorage.setItem('pixelcero_products_cache', JSON.stringify(items));
+      } catch (e) {
+        try { localStorage.removeItem('pixelcero_products_cache'); } catch {}
+      }
+      localforage.setItem('pixelcero_products_cache', items).catch(() => {});
+    };
 
     if (!isMounted) return;
 
-    // Load from durable localforage cache if available
+    // Load from durable localforage cache if available (only before Supabase responds)
     localforage.getItem<Product[]>('pixelcero_products_cache').then((cached) => {
-      if (cached && Array.isArray(cached) && cached.length > 0 && isMounted) {
+      if (cached && Array.isArray(cached) && cached.length > 0 && isMounted && !hasLoadedFromSupabase) {
         setProducts(cached.map(p => ({
           ...p,
           price: normalizePrice(p.price),
@@ -164,11 +174,11 @@ export default function App() {
       .channel('products_changes_' + Math.random().toString(36).substring(7))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
          supabase.from('products').select('*').then(({ data }) => {
-           if (data && data.length > 0 && isMounted) {
+           if (data && isMounted) {
+             hasLoadedFromSupabase = true;
              const merged = mergeProductsWithComments(data as Product[]);
              setProducts(merged);
-             try { localStorage.setItem('pixelcero_products_cache', JSON.stringify(merged)); } catch (e) {}
-             localforage.setItem('pixelcero_products_cache', merged).catch(() => {});
+             persistProductsCache(merged);
            }
          });
       })
@@ -240,13 +250,11 @@ export default function App() {
     supabase.from('products').select('*').then(({ data, error }) => {
       if (error) {
         console.warn('Network notice fetching products:', error);
-      } else if (data && data.length > 0 && isMounted) {
+      } else if (data && isMounted) {
+        hasLoadedFromSupabase = true;
         const merged = mergeProductsWithComments(data as Product[]);
         setProducts(merged);
-        try {
-          localStorage.setItem('pixelcero_products_cache', JSON.stringify(merged));
-        } catch (e) {}
-        localforage.setItem('pixelcero_products_cache', merged).catch(() => {});
+        persistProductsCache(merged);
       }
     });
 
@@ -309,12 +317,11 @@ export default function App() {
       }
     });
 
-
-    // Firestore Realtime listener (multi-database redundancy)
+    // Firestore fallback (only used if Supabase has not responded yet, never overwrites authoritative Supabase rows)
     let unsubscribeFirestore: any;
     try {
       unsubscribeFirestore = onSnapshot(collection(db, 'products'), (snapshot) => {
-        if (!snapshot.empty && isMounted) {
+        if (!snapshot.empty && isMounted && !hasLoadedFromSupabase) {
           const fbProducts: Product[] = [];
           snapshot.forEach(docSnap => {
             const d = docSnap.data() as Product;
@@ -322,20 +329,19 @@ export default function App() {
               fbProducts.push(d);
             }
           });
-          if (fbProducts.length > 0) {
+          if (fbProducts.length > 0 && !hasLoadedFromSupabase) {
             setProducts(prev => {
               const existingMap = new Map(prev.map(p => [p.id, p]));
               fbProducts.forEach(fp => {
-                existingMap.set(fp.id, {
-                  ...fp,
-                  price: normalizePrice(fp.price),
-                  createdAt: fp.createdAt || (fp as any).created_at || (fp.id && fp.id.length > 8 ? Number(fp.id) : undefined)
-                });
+                if (!existingMap.has(fp.id)) {
+                  existingMap.set(fp.id, {
+                    ...fp,
+                    price: normalizePrice(fp.price),
+                    createdAt: fp.createdAt || (fp as any).created_at || (fp.id && fp.id.length > 8 ? Number(fp.id) : undefined)
+                  });
+                }
               });
-              const merged = Array.from(existingMap.values());
-              try { localStorage.setItem('pixelcero_products_cache', JSON.stringify(merged)); } catch (e) {}
-              localforage.setItem('pixelcero_products_cache', merged).catch(() => {});
-              return merged;
+              return Array.from(existingMap.values());
             });
           }
         }

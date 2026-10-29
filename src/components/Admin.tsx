@@ -20,6 +20,16 @@ async function hashPassword(password: string) {
  * Produces crisp 1200px images with 78% quality (~70KB-110KB per photo)
  * Saves instantly to cloud databases with zero delay and avoids network bottlenecks.
  */
+const compressCanvasToTarget = (canvas: HTMLCanvasElement, initialQuality = 0.78, maxChars = 190 * 1024): string => {
+  let quality = initialQuality;
+  let dataUrl = canvas.toDataURL('image/jpeg', quality);
+  while (dataUrl.length > maxChars && quality > 0.48) {
+    quality = Math.round((quality - 0.1) * 100) / 100;
+    dataUrl = canvas.toDataURL('image/jpeg', quality);
+  }
+  return dataUrl;
+};
+
 const processProductImageHD = (file: File): Promise<string> => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -34,7 +44,7 @@ const processProductImageHD = (file: File): Promise<string> => {
       img.onload = () => {
         const width = img.naturalWidth || img.width;
         const height = img.naturalHeight || img.height;
-        const maxDim = 1200; // Ultra crisp on Retina while remaining under 100KB
+        const maxDim = 1200; // Ultra crisp on Retina while remaining compact for multi-photo uploads
 
         let targetWidth = width;
         let targetHeight = height;
@@ -66,10 +76,12 @@ const processProductImageHD = (file: File): Promise<string> => {
         ctx.fillRect(0, 0, targetWidth, targetHeight);
         ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
-        const hdDataUrl = canvas.toDataURL('image/jpeg', 0.78);
+        const hdDataUrl = compressCanvasToTarget(canvas, 0.78, 190 * 1024);
+        canvas.width = 0;
+        canvas.height = 0;
         resolve(hdDataUrl);
       };
-      img.onerror = () => resolve(result);
+      img.onerror = () => resolve('');
       img.src = result;
     };
     reader.onerror = () => resolve('');
@@ -77,18 +89,18 @@ const processProductImageHD = (file: File): Promise<string> => {
   });
 };
 
-// Safeguard for oversized legacy base64 strings (> 250KB) to prevent database timeouts
+// Safeguard for oversized legacy base64 strings (> 190KB) to prevent database timeouts
 const optimizeBase64ImageIfNeeded = async (dataUrl: string): Promise<string> => {
   if (!dataUrl || !dataUrl.startsWith('data:image/')) return dataUrl;
-  // If already under 250KB base64 string, keep it completely untouched with 0ms delay
-  if (dataUrl.length < 250 * 1024) return dataUrl;
+  // If already under 190KB base64 string, keep it completely untouched with 0ms delay
+  if (dataUrl.length < 190 * 1024) return dataUrl;
 
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
       let width = img.naturalWidth || img.width;
       let height = img.naturalHeight || img.height;
-      const maxDim = 1200;
+      const maxDim = 1100;
 
       if (width > maxDim || height > maxDim) {
         if (width > height) {
@@ -112,7 +124,10 @@ const optimizeBase64ImageIfNeeded = async (dataUrl: string): Promise<string> => 
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.78));
+      const optimized = compressCanvasToTarget(canvas, 0.74, 180 * 1024);
+      canvas.width = 0;
+      canvas.height = 0;
+      resolve(optimized);
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
@@ -569,27 +584,32 @@ export default function Admin({
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (savingProduct || uploadingImages) return;
     setSaveProductError(null);
+    setSavingProduct(true);
 
     try {
       const formData = new FormData(e.currentTarget);
-      
-      let finalImages = editingImages;
-      if (finalImages.length === 0 && editing?.images && editing.images.length > 0) {
-        finalImages = editing.images;
-      }
-      if (finalImages.length === 0) {
-        const urlFallback = formData.get('imageUrl') as string;
-        if (urlFallback && urlFallback.trim()) {
-          finalImages = [urlFallback.trim()];
-        }
+
+      // Respetar exactamente las fotos presentes en editingImages (incluyendo cuando se eliminan todas y queda vacío)
+      let finalImages = [...editingImages].filter((img): img is string => typeof img === 'string' && img.trim() !== '');
+
+      // Si el usuario pegó una URL en el campo de texto y presionó Guardar sin darle a "Añadir URL", incluirla también
+      const urlInputEl = document.getElementById('urlInput') as HTMLInputElement | null;
+      const pendingUrl = urlInputEl?.value?.trim();
+      if (pendingUrl) {
+        finalImages.push(pendingUrl);
+        if (urlInputEl) urlInputEl.value = '';
       }
 
-      const rawImages = finalImages;
-      // Sanitize all images fast with 0-delay on pre-optimized images
-      const sanitizedImages = await Promise.all(
-        rawImages.map(img => optimizeBase64ImageIfNeeded(img))
-      );
+      // Optimizar todas las imágenes de forma secuencial para evitar picos de memoria o payloads excesivos
+      const sanitizedImages: string[] = [];
+      for (const img of finalImages) {
+        const optimized = await optimizeBase64ImageIfNeeded(img);
+        if (optimized && optimized.trim() !== '') {
+          sanitizedImages.push(optimized);
+        }
+      }
 
       const product: Product = {
         id: editing?.id || Date.now().toString(),
@@ -604,53 +624,89 @@ export default function Admin({
         createdAt: editing?.createdAt || new Date().toISOString(),
       };
 
-      // 1. INSTANT OPTIMISTIC UPDATE: Update React state & cache immediately (0ms delay)
-      const updatedProducts = isNew 
-        ? [product, ...products] 
+      const baseProductRow: Record<string, any> = {
+        id: product.id,
+        model: product.model,
+        storage: product.storage,
+        condition: product.condition,
+        battery: product.battery,
+        price: product.price,
+        status: product.status || 'Disponible',
+        images: sanitizedImages,
+      };
+
+      // 1. GUARDAR Y VERIFICAR EN SUPABASE ANTES DE MOSTRAR ÉXITO
+      const { error: sbErr } = await supabase
+        .from('products')
+        .upsert(baseProductRow)
+        .select('id');
+
+      if (sbErr) {
+        console.error('Error updating Supabase products table:', sbErr);
+        setSaveProductError(`No se pudieron guardar los cambios en la base de datos: ${sbErr.message}`);
+        showToast('Error al guardar el artículo en la base de datos', 'error');
+        setSavingProduct(false);
+        return;
+      }
+
+      // 2. ACTUALIZAR ESTADO Y CACHÉS LOCALES TRAS CONFIRMACIÓN DE BASE DE DATOS
+      const updatedProducts = isNew
+        ? [product, ...products]
         : products.map(p => p.id === product.id ? product : p);
 
       setProducts(updatedProducts);
       try {
         localStorage.setItem('pixelcero_products_cache', JSON.stringify(updatedProducts));
-      } catch (cacheErr) {}
-      localforage.setItem('pixelcero_products_cache', updatedProducts).catch(() => {});
+      } catch (cacheErr) {
+        // Si excede la cuota de 5MB de localStorage, eliminar la copia vieja para que nunca restaure fotos antiguas al recargar
+        try { localStorage.removeItem('pixelcero_products_cache'); } catch {}
+      }
+      await localforage.setItem('pixelcero_products_cache', updatedProducts).catch(() => {});
 
-      // 2. CLOSE MODAL IMMEDIATELY & SHOW CONFIRMATION
-      setEditing(null);
-      setIsNew(false);
-      setEditingImages([]);
-      setSavingProduct(false);
-      showToast(isNew ? 'Artículo creado correctamente' : 'Artículo actualizado con éxito');
+      // 3. SINCRONIZAR COMENTARIOS, TIMESTAMPS Y FIRESTORE
+      await Promise.allSettled([
+        // Metadata in store_config (comments & timestamps)
+        (async () => {
+          try {
+            const { data: configRows } = await supabase
+              .from('store_config')
+              .select('id, store_name')
+              .in('id', ['product_comments', 'product_timestamps']);
 
-      // 3. BACKGROUND PARALLEL SYNC TO ALL DATABASES (Zero UI blocking)
-      (async () => {
-        const baseProductRow: Record<string, any> = {
-          id: product.id,
-          model: product.model,
-          storage: product.storage,
-          condition: product.condition,
-          battery: product.battery,
-          price: product.price,
-          status: product.status || 'Disponible',
-          images: sanitizedImages,
-        };
+            let commentsMap: Record<string, string> = {};
+            let timestampsMap: Record<string, string | number> = {};
 
-        await Promise.allSettled([
-          // Supabase Products Table - ONLY standard columns that exist in the table schema
-          (async () => {
-            try {
-              const { error: sbErr } = await supabase.from('products').upsert(baseProductRow);
-              if (sbErr) {
-                console.warn('Notice updating Supabase products table:', sbErr.message);
-              }
-            } catch (sbEx) {
-              console.warn('Supabase upsert exception:', sbEx);
+            const commentsRow = configRows?.find((r: any) => r.id === 'product_comments');
+            if (commentsRow?.store_name) {
+              try { commentsMap = JSON.parse(commentsRow.store_name); } catch (e) {}
             }
-          })(),
+            commentsMap[product.id] = product.comments || '';
 
-          // Firestore Products Collection
-          (async () => {
+            const timestampsRow = configRows?.find((r: any) => r.id === 'product_timestamps');
+            if (timestampsRow?.store_name) {
+              try { timestampsMap = JSON.parse(timestampsRow.store_name); } catch (e) {}
+            }
+            if (product.createdAt) {
+              timestampsMap[product.id] = product.createdAt;
+            }
+
             try {
+              localStorage.setItem('pixelcero_comments_cache', JSON.stringify(commentsMap));
+              localStorage.setItem('pixelcero_timestamps_cache', JSON.stringify(timestampsMap));
+            } catch (e) {}
+
+            await supabase.from('store_config').upsert([
+              { id: 'product_comments', store_name: JSON.stringify(commentsMap) },
+              { id: 'product_timestamps', store_name: JSON.stringify(timestampsMap) }
+            ]);
+          } catch (e) {}
+        })(),
+
+        // Firestore backup (solo si el documento cabe dentro del límite de 1MB de Firestore, si no eliminar copia vieja para evitar desincronización)
+        (async () => {
+          try {
+            const totalChars = sanitizedImages.reduce((acc, s) => acc + s.length, 0);
+            if (totalChars < 850 * 1024) {
               await setDoc(doc(db, 'products', product.id), {
                 id: product.id,
                 model: product.model,
@@ -663,48 +719,20 @@ export default function Admin({
                 images: sanitizedImages,
                 createdAt: product.createdAt || new Date().toISOString(),
                 updatedAt: new Date().toISOString()
-              }, { merge: true });
-            } catch (e) {}
-          })(),
+              });
+            } else {
+              await deleteDoc(doc(db, 'products', product.id)).catch(() => {});
+            }
+          } catch (e) {}
+        })()
+      ]);
 
-          // Metadata in store_config (comments & timestamps)
-          (async () => {
-            try {
-              const { data: configRows } = await supabase
-                .from('store_config')
-                .select('id, store_name')
-                .in('id', ['product_comments', 'product_timestamps']);
-
-              let commentsMap: Record<string, string> = {};
-              let timestampsMap: Record<string, string | number> = {};
-
-              const commentsRow = configRows?.find((r: any) => r.id === 'product_comments');
-              if (commentsRow?.store_name) {
-                try { commentsMap = JSON.parse(commentsRow.store_name); } catch (e) {}
-              }
-              commentsMap[product.id] = product.comments || '';
-
-              const timestampsRow = configRows?.find((r: any) => r.id === 'product_timestamps');
-              if (timestampsRow?.store_name) {
-                try { timestampsMap = JSON.parse(timestampsRow.store_name); } catch (e) {}
-              }
-              if (product.createdAt) {
-                timestampsMap[product.id] = product.createdAt;
-              }
-
-              try {
-                localStorage.setItem('pixelcero_comments_cache', JSON.stringify(commentsMap));
-                localStorage.setItem('pixelcero_timestamps_cache', JSON.stringify(timestampsMap));
-              } catch (e) {}
-
-              await supabase.from('store_config').upsert([
-                { id: 'product_comments', store_name: JSON.stringify(commentsMap) },
-                { id: 'product_timestamps', store_name: JSON.stringify(timestampsMap) }
-              ]);
-            } catch (e) {}
-          })()
-        ]);
-      })();
+      // 4. CERRAR MODAL Y CONFIRMAR AL USUARIO
+      setEditing(null);
+      setIsNew(false);
+      setEditingImages([]);
+      setSavingProduct(false);
+      showToast(isNew ? 'Artículo creado correctamente' : 'Artículo actualizado con éxito');
     } catch (err: any) {
       console.error('Error in handleSave:', err);
       setSaveProductError('Ocurrió un error inesperado al guardar el artículo.');
@@ -726,7 +754,9 @@ export default function Admin({
       setProducts(updatedProducts);
       try {
         localStorage.setItem('pixelcero_products_cache', JSON.stringify(updatedProducts));
-      } catch (e) {}
+      } catch (e) {
+        try { localStorage.removeItem('pixelcero_products_cache'); } catch {}
+      }
       localforage.setItem('pixelcero_products_cache', updatedProducts).catch(() => {});
       showToast('Artículo eliminado del inventario');
 
@@ -910,8 +940,12 @@ export default function Admin({
                 {sortedProducts.map(p => (
                   <tr key={p.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4 font-medium text-apple-text flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-apple-bg overflow-hidden flex-shrink-0">
-                        <img src={(p.images && p.images.length > 0) ? p.images[0] : (p as any).imageUrl} alt={p.model} className="w-full h-full object-cover" />
+                      <div className="w-12 h-12 rounded-xl bg-apple-bg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                        {((p.images && p.images.length > 0 && p.images[0]) || (p as any).imageUrl) ? (
+                          <img src={(p.images && p.images.length > 0) ? p.images[0] : (p as any).imageUrl} alt={p.model} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] text-apple-gray font-medium text-center px-1">Sin foto</span>
+                        )}
                       </div>
                       {p.model}
                     </td>
@@ -926,7 +960,15 @@ export default function Admin({
                     </td>
                     <td className="px-6 py-4 flex justify-end gap-2 items-center h-[81px]">
                       <button
-                        onClick={() => { setEditing(p); setEditingImages(Array.isArray(p.images) ? [...p.images] : ((p as any).imageUrl ? [(p as any).imageUrl] : [])); setSaveProductError(null); setIsNew(false); }}
+                        onClick={() => {
+                          setEditing(p);
+                          const initialImgs = Array.isArray(p.images)
+                            ? p.images.filter((img): img is string => typeof img === 'string' && img.trim() !== '')
+                            : ((p as any).imageUrl ? [(p as any).imageUrl] : []);
+                          setEditingImages([...initialImgs]);
+                          setSaveProductError(null);
+                          setIsNew(false);
+                        }}
                         className="p-2.5 text-apple-gray hover:text-apple-blue hover:bg-blue-50 rounded-full transition-colors"
                         title="Editar"
                       >
@@ -1109,12 +1151,13 @@ export default function Admin({
                   {editingImages.length > 0 && (
                     <div className="flex flex-wrap gap-3 mb-4">
                       {editingImages.map((img, i) => (
-                        <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+                        <div key={`${i}-${img.slice(-16)}`} className="relative w-20 h-20 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
                           <img src={img} alt="Preview" className="w-full h-full object-cover" />
                           <button 
                             type="button" 
-                            onClick={() => setEditingImages(editingImages.filter((_, idx) => idx !== i))}
+                            onClick={() => setEditingImages(prev => prev.filter((_, idx) => idx !== i))}
                             className="absolute top-1 right-1 bg-white rounded-full p-1 shadow-sm text-red-500 hover:bg-red-50"
+                            title="Eliminar foto"
                           >
                             <X size={14} />
                           </button>
@@ -1143,20 +1186,28 @@ export default function Admin({
                         className="hidden"
                         disabled={uploadingImages}
                         onChange={async (e) => {
-                          if (!e.target.files || e.target.files.length === 0) return;
+                          const inputEl = e.currentTarget;
+                          if (!inputEl.files || inputEl.files.length === 0) return;
+                          const files = Array.from(inputEl.files) as File[];
                           setUploadingImages(true);
-                          const files = Array.from(e.target.files) as File[];
+                          setSaveProductError(null);
                           try {
-                            const newImages = await Promise.all(
-                              files.map(file => processProductImageHD(file))
-                            );
-                            const validImages = newImages.filter(Boolean);
-                            setEditingImages(prev => [...prev, ...validImages]);
+                            const validImages: string[] = [];
+                            for (const file of files) {
+                              const processed = await processProductImageHD(file);
+                              if (processed && processed.trim() !== '') {
+                                validImages.push(processed);
+                              }
+                            }
+                            if (validImages.length > 0) {
+                              setEditingImages(prev => [...prev, ...validImages]);
+                            }
                           } catch (error) {
                             console.error('Error processing high quality image', error);
+                            setSaveProductError('No se pudieron procesar algunas imágenes seleccionadas.');
                           } finally {
                             setUploadingImages(false);
-                            e.target.value = '';
+                            inputEl.value = '';
                           }
                         }}
                       />
@@ -1171,8 +1222,9 @@ export default function Admin({
                         type="button"
                         onClick={() => {
                           const input = document.getElementById('urlInput') as HTMLInputElement;
-                          if (input.value) {
-                            setEditingImages(prev => [...prev, input.value]);
+                          if (input && input.value.trim()) {
+                            const urlVal = input.value.trim();
+                            setEditingImages(prev => [...prev, urlVal]);
                             input.value = '';
                           }
                         }}
